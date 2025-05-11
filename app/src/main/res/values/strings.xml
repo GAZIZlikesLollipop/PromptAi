@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PromptAi</string>
+    <string-array name="chatUi_cnt">
+        <item>New chat</item>
+        <item>Ask anything to ai</item>
+    </string-array>
+</resources>
