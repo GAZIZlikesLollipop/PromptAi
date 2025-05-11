@@ -1,13 +1,11 @@
 package com.app.promptai.data.repository
 
-import androidx.lifecycle.ViewModelProvider
 import com.app.promptai.data.database.ChatCnt
 import com.app.promptai.data.database.ChatDao
 import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
@@ -21,7 +19,6 @@ interface ChatRepo {
 }
 
 class ChatRepository(private val chatDao: ChatDao): ChatRepo {
-
 
     override val chatMessages: (Long) -> Flow<Pair<List<MessageEntity>, List<MessageEntity>>> = { chatId ->
         flow {

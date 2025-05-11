@@ -4,6 +4,7 @@ package com.app.promptai.presentation.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -46,15 +50,26 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
+import com.app.promptai.presentation.ChatViewModel
 
 @Composable
 fun BaseChatScreen(
-    content: @Composable ((PaddingValues) -> Unit)
+    viewModel: ChatViewModel,
+    onMenu: () -> Unit,
+    onNew: () -> Unit,
+    content: @Composable ((PaddingValues) -> Unit),
 ){
     Scaffold(
         topBar = {
+            TopChatBar(
+                {onMenu()},{onNew()}
+            )
         },
         bottomBar = {
+            TypingChatBar(
+                viewModel.userPrompt,
+                {viewModel.sendPrompt(null,it)}
+            )
         },
         modifier = Modifier.fillMaxSize()
     ){
@@ -102,7 +117,8 @@ fun TopChatBar(
 
 @Composable
 fun TypingChatBar(
-    text: String
+    text: String,
+    sendPrompt: (String) -> Unit
 ){
     var prompt by rememberSaveable { mutableStateOf(text) }
     val cnt = stringArrayResource(R.array.chatUi_cnt)
@@ -138,10 +154,28 @@ fun TypingChatBar(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-
+                Button(
+                    onClick = { sendPrompt(prompt) },
+                    shape = CircleShape,
+                    modifier = Modifier.size(36.dp),
+                    enabled = prompt.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.75f)
+                    )
                 ){
-
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ){
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowUpward,
+                            contentDescription = "",
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
                 }
             }
         }
