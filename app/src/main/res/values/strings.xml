@@ -4,4 +4,7 @@
         <item>New chat</item>
         <item>Ask anything to ai</item>
     </string-array>
+    <string-array name="chat_cnt">
+        <item>How can i help you now?</item>
+    </string-array>
 </resources>

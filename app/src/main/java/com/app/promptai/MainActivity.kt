@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import com.app.promptai.MyApp.Companion.db
 import com.app.promptai.data.repository.ChatRepository
 import com.app.promptai.presentation.ChatViewModel
 import com.app.promptai.presentation.ChatViewModelFactory
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PromptAiTheme {
-                AppNavigation()
+                AppNavigation(chatViewModel)
             }
         }
     }

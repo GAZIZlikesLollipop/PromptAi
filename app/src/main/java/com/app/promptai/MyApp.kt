@@ -4,14 +4,19 @@ import android.app.Application
 import androidx.room.Room
 import com.app.promptai.data.database.ChatDataBase
 
-lateinit var db: ChatDataBase
-class MyApp: Application(){
+class MyApp: Application() {
     override fun onCreate() {
         super.onCreate()
         db = Room.databaseBuilder(
             applicationContext,
             ChatDataBase::class.java,
-            "chat_database"
+            "app_database"
         ).build()
+    }
+
+    companion object {
+        // 3) Глобальная точка доступа
+        lateinit var db: ChatDataBase
+            private set
     }
 }

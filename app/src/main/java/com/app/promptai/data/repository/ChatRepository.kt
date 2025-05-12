@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 
 interface ChatRepo {
     val chats: Flow<List<ChatCnt>>
-    val chatMessages: (Long) -> Flow<Pair<List<MessageEntity>,List<MessageEntity>>>
+    val messages: (Long) -> Flow<List<MessageEntity>>
     suspend fun addChat(chat: ChatEntity)
     suspend fun addMessage(message: MessageEntity)
     suspend fun renameChat(chatId: Long,name: String)
@@ -20,23 +20,7 @@ interface ChatRepo {
 
 class ChatRepository(private val chatDao: ChatDao): ChatRepo {
 
-    override val chatMessages: (Long) -> Flow<Pair<List<MessageEntity>, List<MessageEntity>>> = { chatId ->
-        flow {
-            chatDao.getMessagesForChat(chatId).map { messages ->
-                val userMessages = mutableListOf<MessageEntity>()
-                val aiMessages = mutableListOf<MessageEntity>()
-                messages.forEach {
-                    if (it.senderType == SenderType.USER) {
-                        userMessages.add(it)
-                    } else {
-                        aiMessages.add(it)
-                    }
-                }
-                Pair(userMessages, aiMessages)
-            }
-        }
-    }
-
+    override val messages: (Long) -> Flow<List<MessageEntity>> = { chatDao.getMessagesForChat(it) }
     override val chats: Flow<List<ChatCnt>> = chatDao.getChats()
 
     override suspend fun addChat(chat: ChatEntity){

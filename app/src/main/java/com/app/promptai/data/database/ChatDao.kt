@@ -5,15 +5,17 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChatDao {
+    @Transaction
     @Query("SELECT * FROM chats")
     fun getChats(): Flow<List<ChatCnt>>
 
     @Query("SELECT * FROM messages WHERE chatOwnerId = :chatId")
-    suspend fun getMessagesForChat(chatId: Long): Flow<List<MessageEntity>>
+    fun getMessagesForChat(chatId: Long): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChat(chat: ChatEntity)
