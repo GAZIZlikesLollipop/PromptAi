@@ -11,6 +11,7 @@ import androidx.room.Relation
 data class ChatEntity(
     @PrimaryKey val chatId: Long,
     val name: String,
+    val creationTimestamp: Long = System.currentTimeMillis()
 )
 
 @Entity("messages",
@@ -23,7 +24,7 @@ data class ChatEntity(
     indices = [Index(value = ["chatOwnerId"])]
 )
 data class MessageEntity(
-    @PrimaryKey val messageId: Long,
+    @PrimaryKey(autoGenerate = true) val messageId: Long = 0,
     val chatOwnerId: Long,
     val content: String,
     val senderType: SenderType

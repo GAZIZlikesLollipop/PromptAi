@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -33,6 +33,8 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     private val _currentChatId: MutableStateFlow<Long> = MutableStateFlow(0)
     val currentChatId: StateFlow<Long> = _currentChatId.asStateFlow()
 
+    var isPrompt by mutableStateOf(false)
+
     fun updateChatId(id: Long){
         _currentChatId.value = id
     }
@@ -43,11 +45,13 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
         emptyList<ChatCnt>()
     )
 
-    val messages = chatRepository.messages(currentChatId.value).stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        emptyList<MessageEntity>()
-    )
+    val messages: StateFlow<List<MessageEntity>> = currentChatId
+        .flatMapLatest { chatRepository.messages(it) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            emptyList<MessageEntity>()
+        )
     
     val model = GenerativeModel(
         modelName = "gemini-2.0-flash-lite",
@@ -56,12 +60,8 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     val chat = model.startChat(
         if(messages.value.isNotEmpty()) {
             listOf(
-                content("user") {
-                    messages.value.map { if (it.senderType == SenderType.USER) it.content }.joinToString(", ")
-                },
-                content("model") {
-                    messages.value.map { if (it.senderType == SenderType.AI) it.content }.joinToString(", ")
-                }
+                content("user") { messages.value.map { if (it.senderType == SenderType.USER) it.content }.joinToString(", ") },
+                content("model") { messages.value.map { if (it.senderType == SenderType.AI) it.content }.joinToString(", ") }
             )
         }else{
             emptyList()
@@ -69,47 +69,37 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     )
 
     val userPrompt = MutableStateFlow("")
-//    var userPrompt =_userPrompt.asStateFlow()
-
-//    fun changePrompt(prompt: String){
-//        _userPrompt.value = prompt
-//    }
 
     init {
         viewModelScope.launch {
-            if (chats.value.isEmpty()) {
-                chatRepository.addChat(
-                    ChatEntity(
-                        chatId = 0,
-                        name = "New chat"
-                    )
-                )
-            }
+            chatRepository.addChat(ChatEntity(chatId = chats.value.size.toLong(), name = "New chat"))
         }
     }
 
     fun newChat(){
-        val chatId = (chats.value.lastIndex+1).toLong()
         viewModelScope.launch {
-            chatRepository.addChat(
-                ChatEntity(
-                    chatId = chatId,
-                    name = "New chat"
-                )
-            )
-            _currentChatId.value = chatId
+            chatRepository.addChat(ChatEntity(chatId = chats.value.size.toLong(), name = "New chat"))
+            _currentChatId.value = chats.value.size.toLong()
+        }
+    }
+
+    fun setChatName(){
+        val chatId = currentChatId.value
+        val prompt = "придумай одно имя для этого чата без комментариев"
+        viewModelScope.launch(Dispatchers.IO) {
+            val response = chat.sendMessage(content { text(prompt) })
+            chatRepository.renameChat(chatId,response.text ?: "")
         }
     }
 
     fun sendPrompt(
         bitmap: Bitmap? = null,
-        prompt: String,
-        chatId: Long
+        prompt: String
     ) {
         _uiState.value = UiState.Loading
+        val chatId = currentChatId.value
         viewModelScope.launch(Dispatchers.IO) {
             chatRepository.addMessage(MessageEntity(
-                messageId = if(messages.value.isEmpty()) 0 else (messages.value.lastIndex+1).toLong(),
                 chatOwnerId = chatId,
                 content = prompt,
                 senderType = SenderType.USER
@@ -126,16 +116,15 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
                 response.text?.let {
                     _uiState.value = UiState.Success(it)
                     chatRepository.addMessage(MessageEntity(
-                        messageId = if(messages.value.isEmpty()) 0 else (messages.value.lastIndex+1).toLong(),
                         chatOwnerId = chatId,
                         content = it,
                         senderType = SenderType.AI
                     ))
                 }
+                setChatName()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.localizedMessage ?: "")
                 chatRepository.addMessage(MessageEntity(
-                    messageId = if(messages.value.isEmpty()) 0 else (messages.value.lastIndex+1).toLong(),
                     chatOwnerId = chatId,
                     content = e.localizedMessage ?: "",
                     senderType = SenderType.AI

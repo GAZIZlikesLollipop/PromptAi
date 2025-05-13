@@ -1,7 +1,7 @@
 package com.app.promptai.presentation
 
 import androidx.compose.foundation.layout.Arrangement
-import com.app.promptai.R
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
@@ -28,22 +27,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.app.promptai.R
 import com.app.promptai.data.UiState
 import com.app.promptai.presentation.components.BaseChatScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun ChatScreen(
     chatViewModel: ChatViewModel
 ) {
+    val cnt = stringArrayResource(R.array.chat_cnt)
+
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val uiState by chatViewModel.uiState.collectAsState()
+
     val chats by chatViewModel.chats.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
-    val currentChatId by chatViewModel.currentChatId.collectAsState()
-    val cnt = stringArrayResource(R.array.chat_cnt)
-    val uiState by chatViewModel.uiState.collectAsState()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -66,7 +69,7 @@ fun ChatScreen(
                                 chatViewModel.updateChatId(it.chat.chatId)
                                 scope.launch { drawerState.close() }
                             },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            shape = RoundedCornerShape(0.dp)
                         )
                     }
                 }
@@ -76,20 +79,24 @@ fun ChatScreen(
         val listState = rememberLazyListState()
         BaseChatScreen(
             viewModel = chatViewModel,
-            onMenu = { scope.launch { drawerState.open() } },
+            drawState = drawerState,
             onNew = { chatViewModel.newChat() },
-            chatId = currentChatId
         ){
-            LaunchedEffect(uiState is UiState.Success || uiState is UiState.Error) {
-                listState.animateScrollToItem(messages.lastIndex)
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(it),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceAround
-            ){
-                if(messages.isNotEmpty()) {
+            if(messages.isNotEmpty()) {
+                LaunchedEffect(uiState is UiState.Success || uiState is UiState.Error) {
+                    delay(100)
+                    listState.animateScrollToItem(messages.lastIndex)
+                }
+                LaunchedEffect(chatViewModel.isPrompt) {
+                    listState.animateScrollToItem(messages.lastIndex)
+                    chatViewModel.isPrompt = false
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(it),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(36.dp)
+                ) {
                     items(messages) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -104,14 +111,19 @@ fun ChatScreen(
                             )
                         }
                     }
-                }else{
                     item {
-                        Text(
-                            cnt[0],
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
+
                     }
+                }
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        cnt[0],
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

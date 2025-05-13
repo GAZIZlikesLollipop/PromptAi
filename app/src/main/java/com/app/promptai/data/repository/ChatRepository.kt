@@ -4,14 +4,11 @@ import com.app.promptai.data.database.ChatCnt
 import com.app.promptai.data.database.ChatDao
 import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
-import com.app.promptai.data.database.SenderType
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 
 interface ChatRepo {
-    val chats: Flow<List<ChatCnt>>
     val messages: (Long) -> Flow<List<MessageEntity>>
+    val chats: Flow<List<ChatCnt>>
     suspend fun addChat(chat: ChatEntity)
     suspend fun addMessage(message: MessageEntity)
     suspend fun renameChat(chatId: Long,name: String)
