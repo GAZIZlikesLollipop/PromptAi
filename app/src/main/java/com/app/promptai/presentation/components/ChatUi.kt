@@ -2,6 +2,7 @@
 
 package com.app.promptai.presentation.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,12 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.BottomAppBar
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
 import com.app.promptai.data.UiState
@@ -59,14 +61,14 @@ import kotlinx.coroutines.launch
 fun BaseChatScreen(
     viewModel: ChatViewModel,
     drawState: DrawerState,
-    onNew: () -> Unit,
     content: @Composable ((PaddingValues) -> Unit),
 ){
     val cnt = stringArrayResource(R.array.chatUi_cnt)
     val prompt by viewModel.userPrompt.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val chats by viewModel.chats.collectAsState()
-    val chatName = if(chats.isNotEmpty()){
+    val messages by viewModel.messages.collectAsState()
+    val chatName = if(messages.isNotEmpty()){
         chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name
     }else{
         cnt[0]
@@ -75,18 +77,18 @@ fun BaseChatScreen(
         topBar = {
             TopChatBar(
                 state = drawState,
-                onNew = {onNew},
+                onNew = viewModel::newChat,
                 chatName = chatName
             )
         },
         bottomBar = {
             TypingChatBar(
-                prompt,
-                {pr, boo ->
+                text = prompt,
+                sendPrompt = { pr, boo ->
                     viewModel.sendPrompt(null,pr)
                     viewModel.isPrompt = boo
                 },
-                uiState
+                uiState = uiState
             )
         },
         modifier = Modifier.fillMaxSize()
@@ -106,32 +108,26 @@ fun TopChatBar(
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
-            ){
-                Row {
-                Spacer(Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Rounded.Menu,
-                        contentDescription = "Menu",
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clickable { coroutineScope.launch { state.open() } }
-                    )
-                }
+            ) {
+                Spacer(Modifier.width(16.dp))
+                Icon(
+                    imageVector = Icons.Rounded.Menu,
+                    contentDescription = "Menu",
+                    modifier = Modifier.size(30.dp).clickable { coroutineScope.launch { state.open() } }
+                )
                 Text(
                     text = chatName,
                     style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.offset(y = 12.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
                 )
-                Row {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.new_chat),
-                        contentDescription = "new chat",
-                        modifier = Modifier.size(36.dp).clickable { onNew() }
-                    )
-                Spacer(Modifier.width(16.dp))
-                }
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.new_chat),
+                    contentDescription = "new chat",
+                    modifier = Modifier.size(30.dp).clickable { onNew() }
+                )
+                Spacer(Modifier.width(20.dp))
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(MaterialTheme.colorScheme.surfaceContainer)
@@ -156,12 +152,12 @@ fun TypingChatBar(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.height(300.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             TextField(
                 value = prompt,
                 onValueChange = {prompt = it},
-                modifier = Modifier.fillMaxWidth().height(60.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 placeholder = {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -181,13 +177,26 @@ fun TypingChatBar(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxWidth()
-                ){
+                Box(contentAlignment = Alignment.Center){
+                    Button(
+                        onClick = {  },
+                        shape = CircleShape,
+                        modifier = Modifier.size(46.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        content = {}
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "",
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+
+                Box(contentAlignment = Alignment.Center){
                     Button(
                         onClick = {
                             sendPrompt(prompt,true)
@@ -195,7 +204,7 @@ fun TypingChatBar(
                             focusManager.clearFocus()
                         },
                         shape = CircleShape,
-                        modifier = Modifier.size(50.dp),
+                        modifier = Modifier.size(42.dp),
                         enabled = (uiState is UiState.Initial ||uiState is UiState.Success || uiState is UiState.Error) && prompt.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,

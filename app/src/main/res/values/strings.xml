@@ -6,5 +6,10 @@
     </string-array>
     <string-array name="chat_cnt">
         <item>How can i help you now?</item>
+        <item>Recent</item>
+        <item>Last week</item>
+        <item>Previous 30 days</item>
+        <item>This year</item>
+        <item>Older chats</item>
     </string-array>
 </resources>

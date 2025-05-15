@@ -2,6 +2,7 @@ package com.app.promptai.presentation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,8 +33,14 @@ import androidx.compose.ui.unit.dp
 import com.app.promptai.R
 import com.app.promptai.data.UiState
 import com.app.promptai.presentation.components.BaseChatScreen
+import dev.jeziellago.compose.markdowntext.AutoSizeConfig
+import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
@@ -45,7 +52,7 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val uiState by chatViewModel.uiState.collectAsState()
 
-    val chats by chatViewModel.chats.collectAsState()
+    val chats by chatViewModel.chatMap.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
 
     ModalNavigationDrawer(
@@ -57,20 +64,46 @@ fun ChatScreen(
                 drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer
             ){
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(chats){
-                        NavigationDrawerItem(
-                            label = { Text(it.chat.name) },
-                            selected = false,
-                            onClick = {
-                                chatViewModel.updateChatId(it.chat.chatId)
-                                scope.launch { drawerState.close() }
-                            },
-                            shape = RoundedCornerShape(0.dp)
-                        )
+
+                    items(chats.toList()){
+                        val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
+                        Column {
+
+                            Text(
+                                text = it.first,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                            )
+
+                            it.second.forEach {
+                                val time = Instant.ofEpochMilli(it.chat.creationTimestamp).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                                NavigationDrawerItem(
+                                    label = {
+                                        Column {
+                                            Text(
+                                                it.chat.name
+                                            )
+                                            Text(
+                                                formatter.format(time),
+                                                color = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    },
+                                    selected = false,
+                                    onClick = {
+                                        chatViewModel.updateChatId(it.chat.chatId)
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    shape = RoundedCornerShape(0.dp)
+                                )
+                            }
+
+                        }
                     }
                 }
             }
@@ -79,8 +112,7 @@ fun ChatScreen(
         val listState = rememberLazyListState()
         BaseChatScreen(
             viewModel = chatViewModel,
-            drawState = drawerState,
-            onNew = { chatViewModel.newChat() },
+            drawState = drawerState
         ){
             if(messages.isNotEmpty()) {
                 LaunchedEffect(uiState is UiState.Success || uiState is UiState.Error) {
@@ -104,16 +136,34 @@ fun ChatScreen(
                             contentColor = MaterialTheme.colorScheme.onBackground,
                             shape = RoundedCornerShape(0.dp)
                         ) {
-                            Text(
-                                it.content,
+                            MarkdownText(
+                                markdown = it.content,
                                 style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(16.dp)
+                                modifier = Modifier.padding(16.dp),
+
+                                linkColor = MaterialTheme.colorScheme.onBackground,
+                                syntaxHighlightColor = MaterialTheme.colorScheme.background,
+                                syntaxHighlightTextColor = MaterialTheme.colorScheme.primary.copy(0.75f),
+                                headingBreakColor = MaterialTheme.colorScheme.onBackground.copy(0.75f),
+
+                                truncateOnTextOverflow = true,
+                                isTextSelectable = true,
+//                                disableLinkMovementMethod = true,
+
+                                autoSizeConfig = AutoSizeConfig(
+                                    autoSizeMinTextSize = 16,
+                                    autoSizeMaxTextSize = 24,
+                                    autoSizeStepGranularity = 2,
+                                ),
+
+                                onClick = {},
+                                onLinkClicked = {},
+
+//                                imageLoader =
                             )
                         }
                     }
-                    item {
-
-                    }
+                    item{}
                 }
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.app.promptai"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -64,12 +64,15 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     //Android utils
     implementation(libs.androidx.navigation.compose)
-    implementation("androidx.activity:activity-ktx:1.10.1")
+    implementation(libs.activity.ktx)
     //Room
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.gson)
     //Gemini sdk
     implementation(libs.generativeai)
+    //Utils
+    implementation(libs.compose.markdown)
+    implementation(libs.androidx.material.icons.extended)
 }
