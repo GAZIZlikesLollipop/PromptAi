@@ -2,7 +2,11 @@
 
 package com.app.promptai.presentation.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,17 +17,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
@@ -68,7 +81,7 @@ fun BaseChatScreen(
     val uiState by viewModel.uiState.collectAsState()
     val chats by viewModel.chats.collectAsState()
     val messages by viewModel.messages.collectAsState()
-    val chatName = if(messages.isNotEmpty()){
+    val chatName = if(messages.isNotEmpty() && chats.isNotEmpty()){
         chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name
     }else{
         cnt[0]
@@ -88,7 +101,9 @@ fun BaseChatScreen(
                     viewModel.sendPrompt(null,pr)
                     viewModel.isPrompt = boo
                 },
-                uiState = uiState
+                uiState = uiState,
+                isMore = viewModel.isMore,
+                onMore = viewModel::switchIsMore
             )
         },
         modifier = Modifier.fillMaxSize()
@@ -139,28 +154,37 @@ fun TypingChatBar(
     text: String,
     sendPrompt: (String,Boolean) -> Unit,
     uiState: UiState,
+    isMore: Boolean,
+    onMore: () -> Unit
 ){
     var prompt by rememberSaveable { mutableStateOf(text) }
     val cnt = stringArrayResource(R.array.chatUi_cnt)
     val focusManager = LocalFocusManager.current
+    val rotateAnim by animateFloatAsState(
+        targetValue = if(isMore) 45f else 0f,
+        animationSpec = tween(300,50),
+    )
 
-    BottomAppBar(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).height(150.dp),
-        contentPadding = PaddingValues(16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(16.dp)
+            .imePadding()
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TextField(
                 value = prompt,
                 onValueChange = {prompt = it},
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 6,
                 placeholder = {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
@@ -171,7 +195,9 @@ fun TypingChatBar(
                 },
                 colors = TextFieldDefaults.colors(
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(20.dp)
             )
@@ -184,7 +210,7 @@ fun TypingChatBar(
                     Button(
                         onClick = {  },
                         shape = CircleShape,
-                        modifier = Modifier.size(46.dp),
+                        modifier = Modifier.size(32.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                         content = {}
@@ -192,7 +218,9 @@ fun TypingChatBar(
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = "",
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(rotateAnim),
                     )
                 }
 
@@ -204,7 +232,7 @@ fun TypingChatBar(
                             focusManager.clearFocus()
                         },
                         shape = CircleShape,
-                        modifier = Modifier.size(42.dp),
+                        modifier = Modifier.size(32.dp),
                         enabled = (uiState is UiState.Initial ||uiState is UiState.Success || uiState is UiState.Error) && prompt.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -214,16 +242,66 @@ fun TypingChatBar(
                     )
                     if(uiState is UiState.Loading){
                         CircularProgressIndicator(
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(20.dp),
                             color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
                         )
                     }else {
                         Icon(
                             imageVector = Icons.Rounded.ArrowUpward,
                             contentDescription = "",
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(24.dp),
                             tint = if ((uiState is UiState.Initial || uiState is UiState.Success || uiState is UiState.Error) && prompt.isNotBlank()) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
                         )
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = isMore
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    repeat(3) {
+                        val text = when(it){
+                            0 -> cnt[2]
+                            1 -> cnt[3]
+                            else -> cnt[4]
+                        }
+                        val icon= when(it){
+                            0 -> Icons.Outlined.CameraAlt
+                            1 -> Icons.Outlined.Image
+                            else -> Icons.Outlined.FileOpen
+                        }
+//                        val callBack = when(it){
+//                            0 ->
+//                            1 -> Icons.Outlined.Image
+//                            else -> Icons.Outlined.FileOpen
+//                        }
+                        Card(
+                            onClick = {},
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ){
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = text,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    text,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            }
+                        }
                     }
                 }
             }

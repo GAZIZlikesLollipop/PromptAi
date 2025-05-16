@@ -3,6 +3,9 @@
     <string-array name="chatUi_cnt">
         <item>New chat</item>
         <item>Ask anything to ai</item>
+        <item>Camera</item>
+        <item>Image</item>
+        <item>File</item>
     </string-array>
     <string-array name="chat_cnt">
         <item>How can i help you now?</item>
@@ -11,5 +14,8 @@
         <item>Previous 30 days</item>
         <item>This year</item>
         <item>Older chats</item>
+        <item>Copy</item>
+        <item>Edit</item>
+        <item>Select</item>
     </string-array>
 </resources>

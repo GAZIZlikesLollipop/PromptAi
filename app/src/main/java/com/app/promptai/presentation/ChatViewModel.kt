@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -36,6 +37,11 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     val currentChatId: StateFlow<Long> = _currentChatId.asStateFlow()
 
     var isPrompt by mutableStateOf(false)
+    var isMore by mutableStateOf(false)
+
+    fun switchIsMore(){
+        isMore = !isMore
+    }
 
     fun updateChatId(id: Long){
         _currentChatId.value = id
@@ -64,7 +70,8 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
         )
     
     val model = GenerativeModel(
-        modelName = "gemini-2.0-flash-lite",
+//        modelName = "gemini-2.0-flash",
+        modelName = "gemini-2.5-flash-preview-04-17",
         apiKey = BuildConfig.apiKey
     )
 
@@ -83,15 +90,48 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            chatRepository.addChat(ChatEntity(chatId = chats.value.size.toLong(), name = "New chat"))
+            delay(1000)
+            if(chats.value.isEmpty()) {
+                chatRepository.addChat(
+                    ChatEntity(
+                        chatId = 0,
+                        name = "New chat"
+                    )
+                )
+            }else{
+                val chatsRepo = chatRepository.chats.first()
+                if(chatsRepo.last().messages.isNotEmpty()) {
+                    chatRepository.addChat(
+                        ChatEntity(
+                            chatId = chatsRepo.size.toLong(),
+                            name = "New chat"
+                        )
+                    )
+                    delay(100)
+                    _currentChatId.value = chatsRepo.lastIndex.toLong()
+                }else{
+                    delay(100)
+                    _currentChatId.value = chatsRepo.lastIndex.toLong()
+                }
+            }
         }
     }
 
     fun newChat(){
         viewModelScope.launch {
-            chatRepository.addChat(ChatEntity(chatId = chats.value.size.toLong(), name = "New chat"))
-            delay(100)
-            _currentChatId.value = chats.value.lastIndex.toLong()
+            if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty() && currentChatId.value != chats.value.lastIndex.toLong()) {
+                chatRepository.addChat(
+                    ChatEntity(
+                        chatId = chats.value.size.toLong(),
+                        name = "New chat"
+                    )
+                )
+                delay(100)
+                _currentChatId.value = chats.value.lastIndex.toLong()
+            }else{
+                delay(100)
+                _currentChatId.value = chats.value.lastIndex.toLong()
+            }
         }
     }
 
