@@ -7,10 +7,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.promptai.BuildConfig
+import com.app.promptai.data.ApiState
 import com.app.promptai.data.UiState
 import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
+import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
 import com.app.promptai.utils.getChatMap
 import com.google.ai.client.generativeai.GenerativeModel
@@ -28,13 +30,22 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
+class ChatViewModel(
+    private val chatRepository: ChatRepository,
+    private val chatPreferences: ChatPreferencesRepository
+) : ViewModel() {
+
+    private val _apiState: MutableStateFlow<ApiState> = MutableStateFlow(ApiState.Initial)
+    val apiState: StateFlow<ApiState> = _apiState.asStateFlow()
 
     private val _uiState: MutableStateFlow<UiState> = MutableStateFlow(UiState.Initial)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val _currentChatId: MutableStateFlow<Long> = MutableStateFlow(0)
-    val currentChatId: StateFlow<Long> = _currentChatId.asStateFlow()
+    val currentChatId = chatPreferences.currentChatId.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        0
+    )
 
     var isPrompt by mutableStateOf(false)
     var isMore by mutableStateOf(false)
@@ -44,7 +55,9 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     }
 
     fun updateChatId(id: Long){
-        _currentChatId.value = id
+        viewModelScope.launch {
+            chatPreferences.editChatId(id)
+        }
     }
 
     val chats = chatRepository.chats.stateIn(
@@ -91,7 +104,8 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
     init {
         viewModelScope.launch {
             delay(1000)
-            if(chats.value.isEmpty()) {
+            val chatsRepo = chatRepository.chats.first()
+            if(chatsRepo.isEmpty()) {
                 chatRepository.addChat(
                     ChatEntity(
                         chatId = 0,
@@ -99,38 +113,34 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
                     )
                 )
             }else{
-                val chatsRepo = chatRepository.chats.first()
                 if(chatsRepo.last().messages.isNotEmpty()) {
-                    chatRepository.addChat(
-                        ChatEntity(
-                            chatId = chatsRepo.size.toLong(),
-                            name = "New chat"
+                    updateChatId(
+                        chatRepository.addInitialChat(
+                            ChatEntity(
+                                chatId = chatsRepo.size.toLong(),
+                                name = "New chat"
+                            )
                         )
                     )
-                    delay(100)
-                    _currentChatId.value = chatsRepo.lastIndex.toLong()
-                }else{
-                    delay(100)
-                    _currentChatId.value = chatsRepo.lastIndex.toLong()
                 }
             }
+            _uiState.value = UiState.Success
         }
     }
 
     fun newChat(){
         viewModelScope.launch {
-            if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty() && currentChatId.value != chats.value.lastIndex.toLong()) {
-                chatRepository.addChat(
-                    ChatEntity(
-                        chatId = chats.value.size.toLong(),
-                        name = "New chat"
+            if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty()) {
+                updateChatId(
+                    chatRepository.addInitialChat(
+                        ChatEntity(
+                            chatId = chats.value.size.toLong(),
+                            name = "New chat"
+                        )
                     )
                 )
-                delay(100)
-                _currentChatId.value = chats.value.lastIndex.toLong()
             }else{
-                delay(100)
-                _currentChatId.value = chats.value.lastIndex.toLong()
+                updateChatId(chats.value.lastIndex.toLong())
             }
         }
     }
@@ -148,7 +158,7 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
         bitmap: Bitmap? = null,
         prompt: String
     ) {
-        _uiState.value = UiState.Loading
+        _apiState.value = ApiState.Loading
         val chatId = currentChatId.value
         viewModelScope.launch(Dispatchers.IO) {
             chatRepository.addMessage(
@@ -156,6 +166,13 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
                     chatOwnerId = chatId,
                     content = prompt,
                     senderType = SenderType.USER
+                )
+            )
+            chatRepository.addMessage(
+                MessageEntity(
+                    chatOwnerId = chatId,
+                    content = "",
+                    senderType = SenderType.AI
                 )
             )
             try {
@@ -168,26 +185,20 @@ class ChatViewModel(private val chatRepository: ChatRepository) : ViewModel() {
                     }
                 )
                 response.text?.let {
-                    _uiState.value = UiState.Success(it)
-                    chatRepository.addMessage(
-                        MessageEntity(
-                            chatOwnerId = chatId,
-                            content = it,
-                            senderType = SenderType.AI
-                        )
+                    _apiState.value = ApiState.Success
+                    chatRepository.editMessage(
+                        messageId = messages.value.last().messageId,
+                        message = it
                     )
                 }
-                if(messages.value.size <= 1) {
+                if(messages.value.size <= 2) {
                     setChatName()
                 }
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.localizedMessage ?: "")
-                chatRepository.addMessage(
-                    MessageEntity(
-                        chatOwnerId = chatId,
-                        content = e.localizedMessage ?: "",
-                        senderType = SenderType.AI
-                    )
+                _apiState.value = ApiState.Error
+                chatRepository.editMessage(
+                    messageId = messages.value.last().messageId,
+                    message = e.localizedMessage ?: ""
                 )
             }
         }

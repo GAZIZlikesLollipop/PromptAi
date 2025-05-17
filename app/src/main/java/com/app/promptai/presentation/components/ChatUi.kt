@@ -3,8 +3,11 @@
 package com.app.promptai.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,8 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Image
@@ -66,6 +67,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
+import com.app.promptai.data.ApiState
 import com.app.promptai.data.UiState
 import com.app.promptai.presentation.ChatViewModel
 import kotlinx.coroutines.launch
@@ -78,6 +80,7 @@ fun BaseChatScreen(
 ){
     val cnt = stringArrayResource(R.array.chatUi_cnt)
     val prompt by viewModel.userPrompt.collectAsState()
+    val apiState by viewModel.apiState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val chats by viewModel.chats.collectAsState()
     val messages by viewModel.messages.collectAsState()
@@ -91,7 +94,9 @@ fun BaseChatScreen(
             TopChatBar(
                 state = drawState,
                 onNew = viewModel::newChat,
-                chatName = chatName
+                chatName = chatName,
+                uiState = uiState,
+                apiState = apiState
             )
         },
         bottomBar = {
@@ -101,8 +106,9 @@ fun BaseChatScreen(
                     viewModel.sendPrompt(null,pr)
                     viewModel.isPrompt = boo
                 },
-                uiState = uiState,
+                apiState = apiState,
                 isMore = viewModel.isMore,
+                uiState = uiState,
                 onMore = viewModel::switchIsMore
             )
         },
@@ -116,7 +122,9 @@ fun BaseChatScreen(
 fun TopChatBar(
     state: DrawerState,
     onNew: () -> Unit,
-    chatName: String
+    chatName: String,
+    uiState: UiState,
+    apiState: ApiState
 ){
     val coroutineScope = rememberCoroutineScope()
     TopAppBar(
@@ -129,7 +137,8 @@ fun TopChatBar(
                 Icon(
                     imageVector = Icons.Rounded.Menu,
                     contentDescription = "Menu",
-                    modifier = Modifier.size(30.dp).clickable { coroutineScope.launch { state.open() } }
+                    modifier = Modifier.size(30.dp).clickable { if(uiState !is UiState.Initial && apiState !is ApiState.Error) coroutineScope.launch { state.open() } },
+                    tint = if(uiState is UiState.Initial && apiState !is ApiState.Error) MaterialTheme.colorScheme.onBackground.copy(0.5f) else MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = chatName,
@@ -140,7 +149,8 @@ fun TopChatBar(
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.new_chat),
                     contentDescription = "new chat",
-                    modifier = Modifier.size(30.dp).clickable { onNew() }
+                    modifier = Modifier.size(30.dp).clickable { if(uiState !is UiState.Initial) onNew() },
+                    tint = if(uiState is UiState.Initial) MaterialTheme.colorScheme.onBackground.copy(0.5f) else MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(Modifier.width(20.dp))
             }
@@ -153,8 +163,9 @@ fun TopChatBar(
 fun TypingChatBar(
     text: String,
     sendPrompt: (String,Boolean) -> Unit,
-    uiState: UiState,
+    apiState: ApiState,
     isMore: Boolean,
+    uiState: UiState,
     onMore: () -> Unit
 ){
     var prompt by rememberSaveable { mutableStateOf(text) }
@@ -163,6 +174,10 @@ fun TypingChatBar(
     val rotateAnim by animateFloatAsState(
         targetValue = if(isMore) 45f else 0f,
         animationSpec = tween(300,50),
+    )
+    val colorAnim by animateColorAsState(
+        targetValue = if(isMore) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.primary,
+        animationSpec = tween(300,50)
     )
 
     Box(
@@ -199,7 +214,9 @@ fun TypingChatBar(
                     disabledIndicatorColor = Color.Transparent,
                     errorIndicatorColor = Color.Transparent
                 ),
-                shape = RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(20.dp),
+//                isError = uiState is UiState.Error,
+                enabled = uiState is UiState.Success && apiState !is ApiState.Error
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -208,19 +225,19 @@ fun TypingChatBar(
             ) {
                 Box(contentAlignment = Alignment.Center){
                     Button(
-                        onClick = {  },
+                        onClick = onMore,
                         shape = CircleShape,
                         modifier = Modifier.size(32.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                        content = {}
+                        border = BorderStroke(1.dp, colorAnim),
+                        content = {},
+                        enabled = uiState is UiState.Success && apiState !is ApiState.Error
                     )
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = "",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .rotate(rotateAnim),
+                        modifier = Modifier.size(24.dp).rotate(rotateAnim),
+                        tint = if(uiState is UiState.Success && apiState !is ApiState.Error) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
                     )
                 }
 
@@ -233,34 +250,38 @@ fun TypingChatBar(
                         },
                         shape = CircleShape,
                         modifier = Modifier.size(32.dp),
-                        enabled = (uiState is UiState.Initial ||uiState is UiState.Success || uiState is UiState.Error) && prompt.isNotBlank(),
+                        enabled = apiState is ApiState.Success || apiState is ApiState.Initial && prompt.isNotBlank() && uiState is UiState.Success,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.5f)
                         ),
                         content = {}
                     )
-                    if(uiState is UiState.Loading){
+                    if(apiState is ApiState.Loading){
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                            color = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                            strokeWidth = 2.dp
                         )
                     }else {
                         Icon(
                             imageVector = Icons.Rounded.ArrowUpward,
                             contentDescription = "",
                             modifier = Modifier.size(24.dp),
-                            tint = if ((uiState is UiState.Initial || uiState is UiState.Success || uiState is UiState.Error) && prompt.isNotBlank()) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                            tint = if (apiState is ApiState.Success || apiState is ApiState.Initial && prompt.isNotBlank() && uiState is UiState.Success) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
                         )
                     }
                 }
             }
             AnimatedVisibility(
-                visible = isMore
+                visible = isMore,
+                enter = slideInVertically(tween(300),{it}),
+                exit = slideOutVertically(tween(300),{it})
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceAround
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     repeat(3) {
                         val text = when(it){
@@ -273,20 +294,23 @@ fun TypingChatBar(
                             1 -> Icons.Outlined.Image
                             else -> Icons.Outlined.FileOpen
                         }
-//                        val callBack = when(it){
-//                            0 ->
-//                            1 -> Icons.Outlined.Image
-//                            else -> Icons.Outlined.FileOpen
-//                        }
                         Card(
-                            onClick = {},
+                            onClick = {
+                                when(it){
+                                    0 -> {}
+                                    1 -> {}
+                                    else -> {}
+                                }
+                            },
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 contentColor = MaterialTheme.colorScheme.primary
                             ),
+                            modifier = Modifier.weight(1f)
                         ) {
                             Column(
+                                modifier = Modifier.padding(16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ){
@@ -298,7 +322,8 @@ fun TypingChatBar(
                                 Spacer(Modifier.height(16.dp))
                                 Text(
                                     text,
-                                    style = MaterialTheme.typography.titleLarge
+                                    style = MaterialTheme.typography.titleLarge,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
