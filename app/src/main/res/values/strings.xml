@@ -6,6 +6,7 @@
         <item>Camera</item>
         <item>Image</item>
         <item>File</item>
+        <item>Editing message</item>
     </string-array>
     <string-array name="chat_cnt">
         <item>How can i help you now?</item>
@@ -16,10 +17,7 @@
         <item>Older chats</item>
         <item>Copy</item>
         <item>Edit</item>
-        <item>Select</item>
-        <item>text copied to clipboard</item>
         <item>Retry</item>
-        <item>Generating response…</item>
         <item>Error, please try again</item>
         <item>Regenerate response</item>
     </string-array>

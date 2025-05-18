@@ -15,6 +15,7 @@ interface ChatRepo {
     suspend fun renameChat(chatId: Long,name: String)
     suspend fun editMessage(messageId: Long,message: String)
     suspend fun deleteChat(chat: ChatEntity)
+    suspend fun deleteMessage(message: MessageEntity)
 }
 
 class ChatRepository(private val chatDao: ChatDao): ChatRepo {
@@ -45,6 +46,10 @@ class ChatRepository(private val chatDao: ChatDao): ChatRepo {
 
     override suspend fun editMessage(messageId: Long,message: String) {
         chatDao.editMessage(messageId,message)
+    }
+
+    override suspend fun deleteMessage(message: MessageEntity) {
+        chatDao.deleteMessage(message)
     }
 
 }

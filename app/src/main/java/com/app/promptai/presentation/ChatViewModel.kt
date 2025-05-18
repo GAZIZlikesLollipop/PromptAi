@@ -1,7 +1,9 @@
 package com.app.promptai.presentation
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -47,8 +49,8 @@ class ChatViewModel(
         0
     )
 
-    var isPrompt by mutableStateOf(false)
     var isMore by mutableStateOf(false)
+    var isEdit by mutableStateOf(false)
 
     fun switchIsMore(){
         isMore = !isMore
@@ -100,6 +102,7 @@ class ChatViewModel(
     )
 
     val userPrompt = MutableStateFlow("")
+    var editingMessageId by mutableIntStateOf(0)
 
     init {
         viewModelScope.launch {
@@ -129,6 +132,7 @@ class ChatViewModel(
     }
 
     fun newChat(){
+        _apiState.value = ApiState.Initial
         viewModelScope.launch {
             if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty()) {
                 updateChatId(
@@ -147,18 +151,95 @@ class ChatViewModel(
 
     fun setChatName(){
         val chatId = currentChatId.value
-        val prompt = "придумай одно имя для этого чата без комментариев (язык, на котором будет имя этого чата, зависит от языка твоего предыдущего ответа)"
+        val prompt = "Предыдущий запрос: ${messages.value[messages.value.lastIndex-1].content}" +
+                "Предыдущий ответ: ${messages.value.last().content}" +
+                "придумай одно имя для этого чата без комментариев (язык, на котором будет имя этого чата, зависит от языка твоего предыдущего ответа)"
         viewModelScope.launch(Dispatchers.IO) {
-            val response = chat.sendMessage(content { text(prompt) })
+            val response = model.generateContent(content { text(prompt) })
             chatRepository.renameChat(chatId,(response.text ?: "").trim().filter{it.isLetter()||it.isWhitespace()})
         }
     }
 
-    fun sendPrompt(
+    fun sendRequest(
+        prompt: String,
+        bitmap: Bitmap? = null,
+        onResponse: (String) -> Unit
+    ){
+        _apiState.value = ApiState.Loading
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = chat.sendMessage(
+                    content {
+                        if(bitmap != null) {
+                            image(bitmap)
+                        }
+                        text(prompt)
+                    }
+                )
+                val resp = response.text
+                if(resp != null) {
+                    onResponse(resp)
+                }else{
+                    _apiState.value = ApiState.Error
+                    Log.e("API","response is empty")
+                }
+                if(messages.value.size <= 2) {
+                    setChatName()
+                }
+            } catch (e: Exception) {
+                _apiState.value = ApiState.Error
+                Log.e("API","${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun regenerateResponse(
+        bitmap: Bitmap? = null,
+        message: MessageEntity,
+        prompt: String? = null
+    ){
+        viewModelScope.launch(Dispatchers.IO){
+            chatRepository.editMessage(
+                messageId = message.messageId+1,
+                message = ""
+            )
+            sendRequest(
+                prompt = prompt ?: message.content,
+                bitmap = bitmap,
+                onResponse = {
+                    viewModelScope.launch {
+                        _apiState.value = ApiState.Success
+                        chatRepository.editMessage(
+                            messageId = message.messageId + 1,
+                            message = it
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun editMessage(text: String){
+        isEdit = false
+        viewModelScope.launch {
+            messages.value.forEachIndexed { ind, msg ->
+                if(ind > editingMessageId+1){
+                    chatRepository.deleteMessage(msg)
+                }
+            }
+            val message = messages.value[editingMessageId]
+            chatRepository.editMessage(
+                messageId = message.messageId,
+                message = text
+            )
+            regenerateResponse(message = message, prompt = text)
+        }
+    }
+
+    fun getResponse(
         bitmap: Bitmap? = null,
         prompt: String
     ) {
-        _apiState.value = ApiState.Loading
         val chatId = currentChatId.value
         viewModelScope.launch(Dispatchers.IO) {
             chatRepository.addMessage(
@@ -175,32 +256,19 @@ class ChatViewModel(
                     senderType = SenderType.AI
                 )
             )
-            try {
-                val response = chat.sendMessage(
-                    content {
-                        if(bitmap != null) {
-                            image(bitmap)
-                        }
-                        text(prompt)
+            sendRequest(
+                prompt = prompt,
+                bitmap = bitmap,
+                onResponse = {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        _apiState.value = ApiState.Success
+                        chatRepository.editMessage(
+                            messageId = messages.value.last().messageId,
+                            message = it
+                        )
                     }
-                )
-                response.text?.let {
-                    _apiState.value = ApiState.Success
-                    chatRepository.editMessage(
-                        messageId = messages.value.last().messageId,
-                        message = it
-                    )
                 }
-                if(messages.value.size <= 2) {
-                    setChatName()
-                }
-            } catch (e: Exception) {
-                _apiState.value = ApiState.Error
-                chatRepository.editMessage(
-                    messageId = messages.value.last().messageId,
-                    message = e.localizedMessage ?: ""
-                )
-            }
+            )
         }
     }
 }

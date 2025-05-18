@@ -49,9 +49,11 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -59,11 +61,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
@@ -95,21 +101,22 @@ fun BaseChatScreen(
                 state = drawState,
                 onNew = viewModel::newChat,
                 chatName = chatName,
-                uiState = uiState,
-                apiState = apiState
+                uiState = uiState
             )
         },
         bottomBar = {
             TypingChatBar(
                 text = prompt,
-                sendPrompt = { pr, boo ->
-                    viewModel.sendPrompt(null,pr)
-                    viewModel.isPrompt = boo
+                sendPrompt = { pr ->
+                    viewModel.getResponse(null,pr)
                 },
                 apiState = apiState,
                 isMore = viewModel.isMore,
                 uiState = uiState,
-                onMore = viewModel::switchIsMore
+                onMore = viewModel::switchIsMore,
+                isEdit = viewModel.isEdit,
+                editMessage = viewModel::editMessage,
+                previousMsg = if(messages.isNotEmpty())viewModel.messages.collectAsState().value[viewModel.editingMessageId].content else ""
             )
         },
         modifier = Modifier.fillMaxSize()
@@ -123,8 +130,7 @@ fun TopChatBar(
     state: DrawerState,
     onNew: () -> Unit,
     chatName: String,
-    uiState: UiState,
-    apiState: ApiState
+    uiState: UiState
 ){
     val coroutineScope = rememberCoroutineScope()
     TopAppBar(
@@ -137,8 +143,8 @@ fun TopChatBar(
                 Icon(
                     imageVector = Icons.Rounded.Menu,
                     contentDescription = "Menu",
-                    modifier = Modifier.size(30.dp).clickable { if(uiState !is UiState.Initial && apiState !is ApiState.Error) coroutineScope.launch { state.open() } },
-                    tint = if(uiState is UiState.Initial && apiState !is ApiState.Error) MaterialTheme.colorScheme.onBackground.copy(0.5f) else MaterialTheme.colorScheme.onBackground
+                    modifier = Modifier.size(30.dp).clickable { if(uiState !is UiState.Initial) coroutineScope.launch { state.open() } },
+                    tint = if(uiState is UiState.Initial) MaterialTheme.colorScheme.onBackground.copy(0.5f) else MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = chatName,
@@ -162,15 +168,20 @@ fun TopChatBar(
 @Composable
 fun TypingChatBar(
     text: String,
-    sendPrompt: (String,Boolean) -> Unit,
+    sendPrompt: (String) -> Unit,
     apiState: ApiState,
     isMore: Boolean,
     uiState: UiState,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    isEdit: Boolean,
+    editMessage: (String) -> Unit,
+    previousMsg: String
 ){
-    var prompt by rememberSaveable { mutableStateOf(text) }
+
+    var message by rememberSaveable { mutableStateOf(TextFieldValue(text)) }
     val cnt = stringArrayResource(R.array.chatUi_cnt)
     val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
     val rotateAnim by animateFloatAsState(
         targetValue = if(isMore) 45f else 0f,
         animationSpec = tween(300,50),
@@ -179,6 +190,17 @@ fun TypingChatBar(
         targetValue = if(isMore) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.primary,
         animationSpec = tween(300,50)
     )
+
+    LaunchedEffect(isEdit) {
+        if(isEdit == true) {
+            focusRequester.requestFocus()
+            val textLength = message.text.length
+            message = message.copy(
+                selection = TextRange(textLength, textLength) // Устанавливаем начало и конец выделения в конец текста
+            )
+            message = TextFieldValue(previousMsg)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -193,9 +215,9 @@ fun TypingChatBar(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TextField(
-                value = prompt,
-                onValueChange = {prompt = it},
-                modifier = Modifier.fillMaxWidth(),
+                value = message,
+                onValueChange = {message = it},
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 maxLines = 6,
                 placeholder = {
                     Box(
@@ -203,7 +225,7 @@ fun TypingChatBar(
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
-                            cnt[1],
+                            text = if(isEdit) cnt[5] else cnt[1],
                             color = MaterialTheme.colorScheme.onBackground.copy(0.75f),
                         )
                     }
@@ -212,51 +234,54 @@ fun TypingChatBar(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent,
-                    errorIndicatorColor = Color.Transparent
+                    errorIndicatorColor = Color.Transparent,
                 ),
-                shape = RoundedCornerShape(20.dp),
-//                isError = uiState is UiState.Error,
-                enabled = uiState is UiState.Success && apiState !is ApiState.Error
+                shape = RoundedCornerShape(20.dp)
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(contentAlignment = Alignment.Center){
-                    Button(
-                        onClick = onMore,
-                        shape = CircleShape,
-                        modifier = Modifier.size(32.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        border = BorderStroke(1.dp, colorAnim),
-                        content = {},
-                        enabled = uiState is UiState.Success && apiState !is ApiState.Error
-                    )
+                Button(
+                    onClick = onMore,
+                    shape = CircleShape,
+                    modifier = Modifier.size(32.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, colorAnim),
+                    enabled = uiState is UiState.Success,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = "",
                         modifier = Modifier.size(24.dp).rotate(rotateAnim),
-                        tint = if(uiState is UiState.Success && apiState !is ApiState.Error) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                        tint = if(uiState is UiState.Success) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
                     )
                 }
 
-                Box(contentAlignment = Alignment.Center){
-                    Button(
-                        onClick = {
-                            sendPrompt(prompt,true)
-                            prompt = ""
-                            focusManager.clearFocus()
-                        },
-                        shape = CircleShape,
-                        modifier = Modifier.size(32.dp),
-                        enabled = apiState is ApiState.Success || apiState is ApiState.Initial && prompt.isNotBlank() && uiState is UiState.Success,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.5f)
-                        ),
-                        content = {}
-                    )
+                Button(
+                    onClick = {
+                        if(isEdit){
+                            editMessage(message.text)
+                        }else {
+                            sendPrompt(message.text)
+                        }
+                        message = TextFieldValue("")
+                        focusManager.clearFocus()
+                        focusRequester.freeFocus()
+                    },
+                    shape = CircleShape,
+                    modifier = Modifier.size(32.dp),
+                    enabled = apiState !is ApiState.Error && message.text.isNotBlank() && uiState is UiState.Success,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.5f),
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                    ),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
                     if(apiState is ApiState.Loading){
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
@@ -267,16 +292,16 @@ fun TypingChatBar(
                         Icon(
                             imageVector = Icons.Rounded.ArrowUpward,
                             contentDescription = "",
-                            modifier = Modifier.size(24.dp),
-                            tint = if (apiState is ApiState.Success || apiState is ApiState.Initial && prompt.isNotBlank() && uiState is UiState.Success) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
+
             }
             AnimatedVisibility(
                 visible = isMore,
-                enter = slideInVertically(tween(300),{it}),
-                exit = slideOutVertically(tween(300),{it})
+                enter = slideInVertically(tween(300)) { it },
+                exit = slideOutVertically(tween(300)) { it }
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

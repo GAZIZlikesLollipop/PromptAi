@@ -31,4 +31,7 @@ interface ChatDao {
 
     @Delete
     suspend fun deleteChat(chat: ChatEntity)
+
+    @Delete
+    suspend fun deleteMessage(message: MessageEntity)
 }

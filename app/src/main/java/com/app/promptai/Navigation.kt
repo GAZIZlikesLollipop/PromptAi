@@ -24,5 +24,4 @@ fun AppNavigation(chatViewModel: ChatViewModel){
 sealed class Route(val route: String){
     object Chat: Route("chat")
     object Settings: Route("settings")
-    object SelectText: Route("select_text")
 }
