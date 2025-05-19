@@ -1,11 +1,16 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 
 package com.app.promptai.presentation.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -24,12 +29,17 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Draw
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Menu
@@ -41,6 +51,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,7 +66,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +75,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.vectorResource
@@ -72,10 +84,17 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.app.promptai.R
 import com.app.promptai.data.ApiState
 import com.app.promptai.data.UiState
 import com.app.promptai.presentation.ChatViewModel
+import com.app.promptai.utils.createFileProviderTempUri
+import com.app.promptai.utils.deleteTempFile
+import com.app.promptai.utils.uriToByteArray
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -107,8 +126,8 @@ fun BaseChatScreen(
         bottomBar = {
             TypingChatBar(
                 text = prompt,
-                sendPrompt = { pr ->
-                    viewModel.getResponse(null,pr)
+                sendPrompt = { pr, pics ->
+                    viewModel.getResponse(pr,pics)
                 },
                 apiState = apiState,
                 isMore = viewModel.isMore,
@@ -116,7 +135,13 @@ fun BaseChatScreen(
                 onMore = viewModel::switchIsMore,
                 isEdit = viewModel.isEdit,
                 editMessage = viewModel::editMessage,
-                previousMsg = if(messages.isNotEmpty())viewModel.messages.collectAsState().value[viewModel.editingMessageId].content else ""
+                previousMsg = if(messages.isNotEmpty())viewModel.messages.collectAsState().value[viewModel.editingMessageId].content else "",
+                isOpen = viewModel.isOpen,
+                switchIsEdit = viewModel::switchIsEdit,
+                isWebSearch = viewModel.isWebSearch,
+                switchIsWebSearch = viewModel::switchIsWebSearch,
+                switchIsMore = viewModel::switchIsMore,
+                picList = viewModel.picList,
             )
         },
         modifier = Modifier.fillMaxSize()
@@ -168,17 +193,23 @@ fun TopChatBar(
 @Composable
 fun TypingChatBar(
     text: String,
-    sendPrompt: (String) -> Unit,
+    sendPrompt: (String,List<ByteArray>) -> Unit,
     apiState: ApiState,
     isMore: Boolean,
     uiState: UiState,
     onMore: () -> Unit,
     isEdit: Boolean,
-    editMessage: (String) -> Unit,
-    previousMsg: String
+    editMessage: (String,List<ByteArray>) -> Unit,
+    previousMsg: String,
+    isOpen: Boolean,
+    switchIsEdit: () -> Unit,
+    isWebSearch: Boolean,
+    switchIsWebSearch: () -> Unit,
+    switchIsMore: () -> Unit,
+    picList: MutableList<ByteArray>,
 ){
-
-    var message by rememberSaveable { mutableStateOf(TextFieldValue(text)) }
+    var message by remember { mutableStateOf(TextFieldValue(text)) }
+    val context = LocalContext.current
     val cnt = stringArrayResource(R.array.chatUi_cnt)
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -191,15 +222,32 @@ fun TypingChatBar(
         animationSpec = tween(300,50)
     )
 
+    var pictureUri: Uri? by remember { mutableStateOf(null) }
+    val cameraPermissionState = rememberPermissionState(permission = android.Manifest.permission.CAMERA)
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
+        if(it){
+            pictureUri?.let {
+                val imageBytes = uriToByteArray(context, it)
+                if(imageBytes != null) {
+                    picList.add(imageBytes)
+                }
+                deleteTempFile(context,it)
+            }
+        }
+    }
+
     LaunchedEffect(isEdit) {
         if(isEdit == true) {
             focusRequester.requestFocus()
-            val textLength = message.text.length
-            message = message.copy(
-                selection = TextRange(textLength, textLength) // Устанавливаем начало и конец выделения в конец текста
-            )
-            message = TextFieldValue(previousMsg)
+            message = message.copy(text = previousMsg,selection = TextRange(previousMsg.length))
+        }else{
+            message = TextFieldValue("")
+            focusManager.clearFocus()
         }
+    }
+
+    LaunchedEffect(isOpen) {
+        focusManager.clearFocus()
     }
 
     Box(
@@ -214,6 +262,82 @@ fun TypingChatBar(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            AnimatedVisibility(
+                visible = isEdit,
+                enter = fadeIn(tween(300))+slideInVertically(tween(400)) { it },
+                exit = fadeOut(tween(300))+slideOutVertically(tween(400)) { it }
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onBackground
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Draw,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(24.dp))
+                            Text(
+                                text = cnt[5],
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                        IconButton(
+                            onClick = switchIsEdit,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = null,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(picList.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.height(100.dp)
+                ){
+                    itemsIndexed(picList) { ind, it ->
+                        Box(
+                            modifier = Modifier.fillMaxSize()
+                        ){
+                            AsyncImage(
+                                model = it,
+                                contentDescription = null,
+                                modifier = Modifier.size(100.dp),
+                                contentScale = ContentScale.Crop
+                            )
+                            Button(
+                                onClick = {picList.removeAt(ind)},
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.background.copy(0.75f),
+                                    contentColor = MaterialTheme.colorScheme.onBackground
+                                ),
+                                modifier = Modifier.align(Alignment.TopEnd).size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             TextField(
                 value = message,
                 onValueChange = {message = it},
@@ -243,33 +367,60 @@ fun TypingChatBar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = onMore,
-                    shape = CircleShape,
-                    modifier = Modifier.size(32.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                    border = BorderStroke(1.dp, colorAnim),
-                    enabled = uiState is UiState.Success,
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "",
-                        modifier = Modifier.size(24.dp).rotate(rotateAnim),
-                        tint = if(uiState is UiState.Success) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(0.5f)
-                    )
+                Row {
+                    Button(
+                        onClick = onMore,
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                            disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
+                        ),
+                        border = BorderStroke(1.dp, if(!isWebSearch) colorAnim else MaterialTheme.colorScheme.primary.copy(0.5f)),
+                        contentPadding = PaddingValues(0.dp),
+                        enabled = !isWebSearch
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "",
+                            modifier = Modifier.size(20.dp).rotate(rotateAnim)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if(isMore){switchIsMore()}
+                            switchIsWebSearch()
+                        },
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp),
+                        border = BorderStroke(1.dp, if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if(isWebSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Language,
+                            contentDescription = "",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
                 Button(
                     onClick = {
                         if(isEdit){
-                            editMessage(message.text)
+                            editMessage(message.text,picList)
                         }else {
-                            sendPrompt(message.text)
+                            sendPrompt(message.text,picList)
                         }
+                        picList.clear()
                         message = TextFieldValue("")
                         focusManager.clearFocus()
-                        focusRequester.freeFocus()
                     },
                     shape = CircleShape,
                     modifier = Modifier.size(32.dp),
@@ -322,7 +473,14 @@ fun TypingChatBar(
                         Card(
                             onClick = {
                                 when(it){
-                                    0 -> {}
+                                    0 -> {
+                                        if(cameraPermissionState.status.isGranted){
+                                            pictureUri = createFileProviderTempUri(context)
+                                            pictureUri?.let { takePicture.launch(it) }
+                                        }else{
+                                            cameraPermissionState.launchPermissionRequest()
+                                        }
+                                    }
                                     1 -> {}
                                     else -> {}
                                 }

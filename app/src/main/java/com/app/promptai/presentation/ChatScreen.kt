@@ -74,6 +74,16 @@ fun ChatScreen(
     val chats by chatViewModel.chatMap.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
 
+    LaunchedEffect(messages.size) {
+        if(messages.isNotEmpty()) {
+            chatViewModel.msgId = messages.lastIndex + 1
+        }
+    }
+
+    LaunchedEffect(drawerState.isOpen) {
+        chatViewModel.isOpen = drawerState.isOpen
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         scrimColor = MaterialTheme.colorScheme.background.copy(0.5f),

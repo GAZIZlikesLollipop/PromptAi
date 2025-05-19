@@ -76,4 +76,6 @@ dependencies {
     implementation(libs.compose.markdown)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.accompanist.permissions)
+    implementation(libs.coil.compose)
 }

@@ -1,9 +1,11 @@
 package com.app.promptai.presentation
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -49,8 +51,22 @@ class ChatViewModel(
         0
     )
 
+    val picList = mutableStateListOf<ByteArray>()
+
+    var msgId by mutableIntStateOf(0)
+
     var isMore by mutableStateOf(false)
     var isEdit by mutableStateOf(false)
+    var isOpen by mutableStateOf(false)
+    var isWebSearch by mutableStateOf(false)
+
+    fun switchIsWebSearch(){
+        isWebSearch = !isWebSearch
+    }
+
+    fun switchIsEdit(){
+        isEdit = !isEdit
+    }
 
     fun switchIsMore(){
         isMore = !isMore
@@ -162,7 +178,7 @@ class ChatViewModel(
 
     fun sendRequest(
         prompt: String,
-        bitmap: Bitmap? = null,
+        bitmap: List<Bitmap> = emptyList(),
         onResponse: (String) -> Unit
     ){
         _apiState.value = ApiState.Loading
@@ -170,12 +186,16 @@ class ChatViewModel(
             try {
                 val response = chat.sendMessage(
                     content {
-                        if(bitmap != null) {
-                            image(bitmap)
+                        if(bitmap.isNotEmpty()) {
+                            bitmap.forEach {
+                                image(it)
+                            }
                         }
+
                         text(prompt)
                     }
                 )
+                userPrompt.value = ""
                 val resp = response.text
                 if(resp != null) {
                     onResponse(resp)
@@ -183,21 +203,26 @@ class ChatViewModel(
                     _apiState.value = ApiState.Error
                     Log.e("API","response is empty")
                 }
-                if(messages.value.size <= 2) {
+                if(chats.value[currentChatId.value.toInt()].chat.name == "New chat") {
                     setChatName()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _apiState.value = ApiState.Error
-                Log.e("API","${e.localizedMessage}")
+//                Log.e("API","${e.localizedMessage}")
+                Log.e("API","api error")
             }
         }
     }
 
     fun regenerateResponse(
-        bitmap: Bitmap? = null,
+        pics: List<ByteArray> = emptyList(),
         message: MessageEntity,
         prompt: String? = null
     ){
+        val bitmapList = mutableListOf<Bitmap>()
+        pics.forEach {
+            byteArrayToBitmap(it)?.let { element -> bitmapList.add(element) }
+        }
         viewModelScope.launch(Dispatchers.IO){
             chatRepository.editMessage(
                 messageId = message.messageId+1,
@@ -205,7 +230,7 @@ class ChatViewModel(
             )
             sendRequest(
                 prompt = prompt ?: message.content,
-                bitmap = bitmap,
+                bitmap = bitmapList,
                 onResponse = {
                     viewModelScope.launch {
                         _apiState.value = ApiState.Success
@@ -219,7 +244,7 @@ class ChatViewModel(
         }
     }
 
-    fun editMessage(text: String){
+    fun editMessage(text: String, pics: List<ByteArray>){
         isEdit = false
         viewModelScope.launch {
             messages.value.forEachIndexed { ind, msg ->
@@ -232,14 +257,18 @@ class ChatViewModel(
                 messageId = message.messageId,
                 message = text
             )
-            regenerateResponse(message = message, prompt = text)
+            regenerateResponse(message = message, prompt = text, pics = pics)
         }
     }
 
     fun getResponse(
-        bitmap: Bitmap? = null,
-        prompt: String
+        prompt: String,
+        pics: List<ByteArray> = emptyList()
     ) {
+        val bitmapList = mutableListOf<Bitmap>()
+        pics.forEach {
+            byteArrayToBitmap(it)?.let { element -> bitmapList.add(element) }
+        }
         val chatId = currentChatId.value
         viewModelScope.launch(Dispatchers.IO) {
             chatRepository.addMessage(
@@ -258,7 +287,7 @@ class ChatViewModel(
             )
             sendRequest(
                 prompt = prompt,
-                bitmap = bitmap,
+                bitmap = bitmapList,
                 onResponse = {
                     viewModelScope.launch(Dispatchers.IO) {
                         _apiState.value = ApiState.Success
@@ -269,6 +298,14 @@ class ChatViewModel(
                     }
                 }
             )
+        }
+    }
+    fun byteArrayToBitmap(byteArray: ByteArray): Bitmap? {
+        return try {
+            BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 }

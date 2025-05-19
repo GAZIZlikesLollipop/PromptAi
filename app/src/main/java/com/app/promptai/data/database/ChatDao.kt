@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 
 @Dao
 interface ChatDao {
@@ -26,8 +27,8 @@ interface ChatDao {
     @Query("UPDATE chats SET name = :newName WHERE chatId = :chatId")
     suspend fun renameChat(chatId: Long,newName: String)
 
-    @Query("UPDATE messages SET content = :newContent WHERE messageId = :msgId")
-    suspend fun editMessage(msgId: Long, newContent: String)
+    @Query("UPDATE messages SET content = :newContent WHERE messageId = :msgId AND pictures = :pics")
+    suspend fun editMessage(msgId: Long, newContent: String, pics: List<ByteArray>)
 
     @Delete
     suspend fun deleteChat(chat: ChatEntity)
