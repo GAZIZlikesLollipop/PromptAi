@@ -1,0 +1,291 @@
+package com.app.promptai.presentation.components
+
+import android.content.ClipData
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.Cached
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.twotone.Star
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerState
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import com.app.promptai.R
+import com.app.promptai.data.database.ChatEntity
+import com.app.promptai.data.database.SenderType
+import dev.jeziellago.compose.markdowntext.MarkdownText
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+
+@Composable
+private fun ChatText(text: String){
+    MarkdownText(
+        markdown = text,
+        modifier = Modifier.padding(12.dp),
+        linkColor = MaterialTheme.colorScheme.onBackground,
+        syntaxHighlightColor = MaterialTheme.colorScheme.background,
+        syntaxHighlightTextColor = MaterialTheme.colorScheme.primary.copy(0.75f),
+        headingBreakColor = MaterialTheme.colorScheme.onBackground.copy(0.75f),
+        isTextSelectable = true,
+        onClick = {},
+        onLinkClicked = {},
+    )
+}
+
+@Composable
+fun ChatContent(
+    message: String,
+    senderType: SenderType,
+    onRegenerate: () -> Unit = {},
+    onEdit: () -> Unit = {}
+){
+    val coroutine = rememberCoroutineScope()
+    val clipboardManager = LocalClipboard.current
+    val cnt = stringArrayResource(R.array.chat_cnt)
+
+    if(message.isNotEmpty() || senderType == SenderType.USER) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = if (senderType == SenderType.USER) Alignment.End else Alignment.Start
+        ) {
+            Surface(
+                shape = RoundedCornerShape(
+                    bottomEnd = 24.dp,
+                    bottomStart = 24.dp,
+                    topEnd = if (senderType == SenderType.USER) 4.dp else 24.dp,
+                    topStart = if (senderType == SenderType.USER) 24.dp else 4.dp,
+                ),
+                color = if (senderType == SenderType.USER) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.padding(16.dp),
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                tonalElevation = 12.dp,
+                shadowElevation = 12.dp
+            ) {
+                ChatText(message)
+            }
+            Row(
+                modifier = Modifier.offset(x = if (senderType == SenderType.USER) (-12).dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(2) {
+
+                    val text = if(it == 0) cnt[6] else if (senderType == SenderType.USER) cnt[7] else cnt[8]
+                    val icon = if(it == 0)  Icons.Outlined.ContentCopy else if (senderType == SenderType.USER) Icons.Outlined.Edit else Icons.Outlined.Cached
+
+                    Surface(
+                        onClick = {
+                            if(it == 0){
+                                coroutine.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("", message))) }
+                            }else{
+                                if(senderType == SenderType.AI) onRegenerate() else onEdit()
+                            }
+                        },
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceAround,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = text,
+                                tint = MaterialTheme.colorScheme.onBackground.copy(0.35f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onBackground.copy(0.35f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }else{
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 3.dp,
+                modifier = Modifier,
+                trackColor = MaterialTheme.colorScheme.onBackground,
+                strokeCap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
+@Composable
+fun ChatCard(
+    isMenu: Boolean,
+    chat: ChatEntity,
+    drawerState: DrawerState,
+    onLongPress: (Offset) -> Unit,
+    onTap: (Offset) -> Unit,
+    onRename: () -> Unit,
+    switchIsFavorite: () -> Unit,
+    onDelete: () -> Unit,
+    menuFalse: () -> Unit
+){
+
+    val time = Instant.ofEpochMilli(chat.creationTimestamp).atZone(ZoneId.systemDefault()).toLocalDateTime()
+    var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    val poopCnt = stringArrayResource(R.array.popup_cnt)
+    val formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = { onLongPress(it) },
+                    onTap = onTap
+                )
+            }
+    ) {
+
+        Column(Modifier.heightIn(min = 56.0.dp).padding(16.dp)) {
+            Text(chat.name)
+            Text(
+                formatter.format(time),
+                color = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+        }
+        Column {
+            AnimatedVisibility(
+                visible = isMenu && drawerState.isOpen
+            ) {
+                Popup(
+                    alignment = Alignment.TopStart,
+                    offset = IntOffset(
+                        pressOffset.x.toInt(),
+                        pressOffset.y.toInt()
+                    ),
+                    onDismissRequest = menuFalse
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .width(150.dp)
+                                .padding(8.dp),
+//                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            repeat(3) {
+                                val icon =
+                                    if (!chat.isFavorite) {
+                                        when (it) {
+                                            0 -> Icons.Default.Edit
+                                            1 -> Icons.TwoTone.Star
+                                            else -> Icons.Default.Delete
+                                        }
+                                    } else {
+                                        when (it) {
+                                            0 -> Icons.Default.Edit
+                                            1 -> Icons.Outlined.Star
+                                            else -> Icons.Default.Delete
+                                        }
+                                    }
+                                val text =
+                                    if (!chat.isFavorite) {
+                                        when (it) {
+                                            0 -> poopCnt[0]
+                                            1 -> poopCnt[2]
+                                            else -> poopCnt[1]
+                                        }
+                                    } else {
+                                        when (it) {
+                                            0 -> poopCnt[0]
+                                            1 -> poopCnt[3]
+                                            else -> poopCnt[1]
+                                        }
+                                    }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            menuFalse()
+                                            when (it) {
+                                                0 -> onRename
+                                                1 -> switchIsFavorite
+                                                else ->  onDelete
+                                            }
+                                        },
+                                    horizontalArrangement = Arrangement.SpaceAround,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = text,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = text,
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(8.dp),
+                                        color = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground,
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                }
+                                if (it != 2) {
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

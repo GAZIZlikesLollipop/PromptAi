@@ -2,6 +2,7 @@
 
 package com.app.promptai.presentation.components
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -86,12 +87,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.app.promptai.R
-import com.app.promptai.data.ApiState
-import com.app.promptai.data.UiState
 import com.app.promptai.presentation.ChatViewModel
+import com.app.promptai.utils.ApiState
+import com.app.promptai.utils.UiState
 import com.app.promptai.utils.createFileProviderTempUri
 import com.app.promptai.utils.deleteTempFile
-import com.app.promptai.utils.uriToByteArray
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -126,9 +126,7 @@ fun BaseChatScreen(
         bottomBar = {
             TypingChatBar(
                 text = prompt,
-                sendPrompt = { pr, pics ->
-                    viewModel.getResponse(pr,pics)
-                },
+                sendPrompt = viewModel::getResponse,
                 apiState = apiState,
                 isMore = viewModel.isMore,
                 uiState = uiState,
@@ -193,20 +191,20 @@ fun TopChatBar(
 @Composable
 fun TypingChatBar(
     text: String,
-    sendPrompt: (String,List<ByteArray>) -> Unit,
+    sendPrompt: (String, List<Uri>, Context) -> Unit,
     apiState: ApiState,
     isMore: Boolean,
     uiState: UiState,
     onMore: () -> Unit,
     isEdit: Boolean,
-    editMessage: (String,List<ByteArray>) -> Unit,
+    editMessage: (String, List<Uri>, Context) -> Unit,
     previousMsg: String,
     isOpen: Boolean,
     switchIsEdit: () -> Unit,
     isWebSearch: Boolean,
     switchIsWebSearch: () -> Unit,
     switchIsMore: () -> Unit,
-    picList: MutableList<ByteArray>,
+    picList: MutableList<Uri>,
 ){
     var message by remember { mutableStateOf(TextFieldValue(text)) }
     val context = LocalContext.current
@@ -225,15 +223,7 @@ fun TypingChatBar(
     var pictureUri: Uri? by remember { mutableStateOf(null) }
     val cameraPermissionState = rememberPermissionState(permission = android.Manifest.permission.CAMERA)
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
-        if(it){
-            pictureUri?.let {
-                val imageBytes = uriToByteArray(context, it)
-                if(imageBytes != null) {
-                    picList.add(imageBytes)
-                }
-                deleteTempFile(context,it)
-            }
-        }
+        if(it){ pictureUri?.let { picList.add(it) } }
     }
 
     LaunchedEffect(isEdit) {
@@ -307,7 +297,8 @@ fun TypingChatBar(
             }
             AnimatedVisibility(picList.isNotEmpty()) {
                 LazyRow(
-                    modifier = Modifier.height(100.dp)
+                    modifier = Modifier.height(100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ){
                     itemsIndexed(picList) { ind, it ->
                         Box(
@@ -316,22 +307,26 @@ fun TypingChatBar(
                             AsyncImage(
                                 model = it,
                                 contentDescription = null,
-                                modifier = Modifier.size(100.dp),
+                                modifier = Modifier.clip(RoundedCornerShape(12.dp)).size(100.dp),
                                 contentScale = ContentScale.Crop
                             )
                             Button(
-                                onClick = {picList.removeAt(ind)},
+                                onClick = {
+                                    deleteTempFile(context,picList[ind])
+                                    picList.removeAt(ind)
+                                },
                                 shape = CircleShape,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.background.copy(0.75f),
                                     contentColor = MaterialTheme.colorScheme.onBackground
                                 ),
-                                modifier = Modifier.align(Alignment.TopEnd).size(32.dp)
+                                modifier = Modifier.padding(2.dp).align(Alignment.TopEnd).size(26.dp),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = null,
-                                    modifier = Modifier.size(26.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -401,7 +396,8 @@ fun TypingChatBar(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if(isWebSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.surfaceContainerHighest,
                             contentColor = if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
-                        )
+                        ),
+                        enabled = picList.isEmpty()
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Language,
@@ -414,9 +410,9 @@ fun TypingChatBar(
                 Button(
                     onClick = {
                         if(isEdit){
-                            editMessage(message.text,picList)
+                            editMessage(message.text,picList.toList(),context)
                         }else {
-                            sendPrompt(message.text,picList)
+                            sendPrompt(message.text,picList.toList(),context)
                         }
                         picList.clear()
                         message = TextFieldValue("")
@@ -476,7 +472,9 @@ fun TypingChatBar(
                                     0 -> {
                                         if(cameraPermissionState.status.isGranted){
                                             pictureUri = createFileProviderTempUri(context)
-                                            pictureUri?.let { takePicture.launch(it) }
+                                            if(pictureUri != null) {
+                                                pictureUri?.let { takePicture.launch(it) }
+                                            }
                                         }else{
                                             cameraPermissionState.launchPermissionRequest()
                                         }

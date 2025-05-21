@@ -1,18 +1,19 @@
 package com.app.promptai.data.database
 
+import android.net.Uri
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
-import java.io.File
 
 @Entity("chats")
 data class ChatEntity(
     @PrimaryKey val chatId: Long,
     val name: String,
-    val creationTimestamp: Long = System.currentTimeMillis()
+    val creationTimestamp: Long = System.currentTimeMillis(),
+    val isFavorite: Boolean = false
 )
 
 @Entity("messages",
@@ -29,7 +30,7 @@ data class MessageEntity(
     val chatOwnerId: Long,
     val content: String,
     val senderType: SenderType,
-    val pictures: List<ByteArray> = emptyList()
+    val pictures: List<Uri> = emptyList()
 )
 
 enum class SenderType { USER, AI }

@@ -1,5 +1,6 @@
 package com.app.promptai.data.repository
 
+import android.net.Uri
 import com.app.promptai.data.database.ChatCnt
 import com.app.promptai.data.database.ChatDao
 import com.app.promptai.data.database.ChatEntity
@@ -12,11 +13,11 @@ interface ChatRepo {
     val chats: Flow<List<ChatCnt>>
     suspend fun addChat(chat: ChatEntity)
     suspend fun addMessage(message: MessageEntity)
-    suspend fun renameChat(chatId: Long,name: String)
+    suspend fun editChat(chat: ChatEntity)
     suspend fun editMessage(
         messageId: Long,
         message: String,
-        pictures: List<ByteArray> = emptyList()
+        pictures: List<Uri> = emptyList()
     )
     suspend fun deleteChat(chat: ChatEntity)
     suspend fun deleteMessage(message: MessageEntity)
@@ -44,14 +45,14 @@ class ChatRepository(private val chatDao: ChatDao): ChatRepo {
         chatDao.deleteChat(chat)
     }
 
-    override suspend fun renameChat(chatId: Long,name: String){
-        chatDao.renameChat(chatId,name)
+    override suspend fun editChat(chat: ChatEntity){
+        chatDao.editChat(chat)
     }
 
     override suspend fun editMessage(
         messageId: Long,
         message: String,
-        pictures: List<ByteArray>
+        pictures: List<Uri>
     ) {
         chatDao.editMessage(messageId,message,pictures)
     }

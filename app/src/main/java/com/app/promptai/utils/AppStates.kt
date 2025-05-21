@@ -1,4 +1,4 @@
-package com.app.promptai.data
+package com.app.promptai.utils
 
 sealed interface ApiState {
     object Initial : ApiState

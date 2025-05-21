@@ -1,5 +1,6 @@
 package com.app.promptai.utils
 
+import android.app.Application
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -62,12 +63,13 @@ fun getChatMap(chats: List<ChatCnt>): Flow<Map<String, List<ChatCnt>>> {
 
 class ChatViewModelFactory(
     private val chatRepository: ChatRepository,
-    private val chatPreferences: ChatPreferencesRepository
+    private val chatPreferences: ChatPreferencesRepository,
+    private val application: Application
 ): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if(modelClass.isAssignableFrom(ChatViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ChatViewModel(chatRepository,chatPreferences) as T
+            return ChatViewModel(chatRepository,chatPreferences,application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val chatPreferences = ChatPreferencesRepository(this)
         val chatRepository = ChatRepository(db.chatDao())
-        chatViewModel = viewModels<ChatViewModel> { ChatViewModelFactory(chatRepository,chatPreferences) }.value
+        chatViewModel = viewModels<ChatViewModel> { ChatViewModelFactory(chatRepository,chatPreferences,application) }.value
 
         setContent {
             PromptAiTheme {

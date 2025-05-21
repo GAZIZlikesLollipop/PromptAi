@@ -1,13 +1,14 @@
 package com.app.promptai.data.database
 
+import android.net.Uri
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
-import java.io.File
 
 @Dao
 interface ChatDao {
@@ -24,11 +25,15 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
 
-    @Query("UPDATE chats SET name = :newName WHERE chatId = :chatId")
-    suspend fun renameChat(chatId: Long,newName: String)
+    @Update
+    suspend fun editChat(chat: ChatEntity)
 
     @Query("UPDATE messages SET content = :newContent WHERE messageId = :msgId AND pictures = :pics")
-    suspend fun editMessage(msgId: Long, newContent: String, pics: List<ByteArray>)
+    suspend fun editMessage(
+        msgId: Long,
+        newContent: String,
+        pics: List<Uri>
+    )
 
     @Delete
     suspend fun deleteChat(chat: ChatEntity)

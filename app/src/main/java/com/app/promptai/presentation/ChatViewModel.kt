@@ -1,7 +1,9 @@
 package com.app.promptai.presentation
 
+import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -11,14 +13,16 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.promptai.BuildConfig
-import com.app.promptai.data.ApiState
-import com.app.promptai.data.UiState
+import com.app.promptai.R
 import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
 import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
+import com.app.promptai.utils.ApiState
+import com.app.promptai.utils.UiState
 import com.app.promptai.utils.getChatMap
+import com.app.promptai.utils.uriToBitmap
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +36,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.lang.System
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(
     private val chatRepository: ChatRepository,
-    private val chatPreferences: ChatPreferencesRepository
+    private val chatPreferences: ChatPreferencesRepository,
+    private val application: Application
 ) : ViewModel() {
 
     private val _apiState: MutableStateFlow<ApiState> = MutableStateFlow(ApiState.Initial)
@@ -51,7 +57,7 @@ class ChatViewModel(
         0
     )
 
-    val picList = mutableStateListOf<ByteArray>()
+    val picList = mutableStateListOf<Uri>()
 
     var msgId by mutableIntStateOf(0)
 
@@ -59,6 +65,7 @@ class ChatViewModel(
     var isEdit by mutableStateOf(false)
     var isOpen by mutableStateOf(false)
     var isWebSearch by mutableStateOf(false)
+    var manipulChatId by mutableIntStateOf(0)
 
     fun switchIsWebSearch(){
         isWebSearch = !isWebSearch
@@ -128,7 +135,7 @@ class ChatViewModel(
                 chatRepository.addChat(
                     ChatEntity(
                         chatId = 0,
-                        name = "New chat"
+                        name = application.getString(R.string.new_chat)
                     )
                 )
             }else{
@@ -137,7 +144,7 @@ class ChatViewModel(
                         chatRepository.addInitialChat(
                             ChatEntity(
                                 chatId = chatsRepo.size.toLong(),
-                                name = "New chat"
+                                name = application.getString(R.string.new_chat)
                             )
                         )
                     )
@@ -155,7 +162,7 @@ class ChatViewModel(
                     chatRepository.addInitialChat(
                         ChatEntity(
                             chatId = chats.value.size.toLong(),
-                            name = "New chat"
+                            name = application.getString(R.string.new_chat)
                         )
                     )
                 )
@@ -172,7 +179,12 @@ class ChatViewModel(
                 "придумай одно имя для этого чата без комментариев (язык, на котором будет имя этого чата, зависит от языка твоего предыдущего ответа)"
         viewModelScope.launch(Dispatchers.IO) {
             val response = model.generateContent(content { text(prompt) })
-            chatRepository.renameChat(chatId,(response.text ?: "").trim().filter{it.isLetter()||it.isWhitespace()})
+            chatRepository.editChat(
+                ChatEntity(
+                    chatId = chatId,
+                    name = (response.text ?: "").trim().filter{it.isLetter()||it.isWhitespace()}
+                )
+            )
         }
     }
 
@@ -203,7 +215,7 @@ class ChatViewModel(
                     _apiState.value = ApiState.Error
                     Log.e("API","response is empty")
                 }
-                if(chats.value[currentChatId.value.toInt()].chat.name == "New chat") {
+                if(chats.value[currentChatId.value.toInt()].chat.name == application.getString(R.string.new_chat)) {
                     setChatName()
                 }
             } catch (_: Exception) {
@@ -215,18 +227,20 @@ class ChatViewModel(
     }
 
     fun regenerateResponse(
-        pics: List<ByteArray> = emptyList(),
+        pics: List<Uri> = emptyList(),
         message: MessageEntity,
-        prompt: String? = null
+        prompt: String? = null,
+        context: Context
     ){
         val bitmapList = mutableListOf<Bitmap>()
         pics.forEach {
-            byteArrayToBitmap(it)?.let { element -> bitmapList.add(element) }
+            uriToBitmap(context,it)?.let { element -> bitmapList.add(element) }
         }
         viewModelScope.launch(Dispatchers.IO){
             chatRepository.editMessage(
                 messageId = message.messageId+1,
-                message = ""
+                message = "",
+                pictures = pics
             )
             sendRequest(
                 prompt = prompt ?: message.content,
@@ -244,7 +258,40 @@ class ChatViewModel(
         }
     }
 
-    fun editMessage(text: String, pics: List<ByteArray>){
+    fun deleteChat(chat: ChatEntity){
+        viewModelScope.launch {
+            if(chats.value.size > 1) {
+                if(currentChatId.value == chats.value.last().chat.chatId && currentChatId.value.toInt() != 0) {
+                    updateChatId(currentChatId.value - 1)
+                }
+                chatRepository.deleteChat(chat)
+            }else{
+                chatRepository.messages(manipulChatId.toLong()).first().forEach {
+                    chatRepository.deleteMessage(it)
+                }
+                chatRepository.editChat(
+                    ChatEntity(
+                        chatId = 0,
+                        name = application.getString(R.string.new_chat),
+                        creationTimestamp = System.currentTimeMillis(),
+                        isFavorite = false
+                    )
+                )
+            }
+        }
+    }
+
+    fun editChat(chat: ChatEntity){
+        viewModelScope.launch {
+            chatRepository.editChat(chat)
+        }
+    }
+
+    fun editMessage(
+        text: String,
+        pics: List<Uri>,
+        context: Context
+    ){
         isEdit = false
         viewModelScope.launch {
             messages.value.forEachIndexed { ind, msg ->
@@ -257,25 +304,32 @@ class ChatViewModel(
                 messageId = message.messageId,
                 message = text
             )
-            regenerateResponse(message = message, prompt = text, pics = pics)
+            regenerateResponse(
+                message = message,
+                prompt = text,
+                pics = pics,
+                context = context
+            )
         }
     }
 
     fun getResponse(
         prompt: String,
-        pics: List<ByteArray> = emptyList()
+        pics: List<Uri>,
+        context: Context
     ) {
         val bitmapList = mutableListOf<Bitmap>()
         pics.forEach {
-            byteArrayToBitmap(it)?.let { element -> bitmapList.add(element) }
+            uriToBitmap(context,it)?.let { bitmapList.add(it) }
         }
         val chatId = currentChatId.value
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             chatRepository.addMessage(
                 MessageEntity(
                     chatOwnerId = chatId,
                     content = prompt,
-                    senderType = SenderType.USER
+                    senderType = SenderType.USER,
+                    pictures = pics
                 )
             )
             chatRepository.addMessage(
@@ -298,14 +352,6 @@ class ChatViewModel(
                     }
                 }
             )
-        }
-    }
-    fun byteArrayToBitmap(byteArray: ByteArray): Bitmap? {
-        return try {
-            BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
         }
     }
 }

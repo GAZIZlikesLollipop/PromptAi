@@ -8,10 +8,12 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 
 fun createFileProviderTempUri(context: Context): Uri? {
-    val externalFilesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-    val tempImagesDir = File(externalFilesDir, "TempAppImages") // Временная папка
+    val externalFilesDir = context.filesDir
+    val tempImagesDir = File(externalFilesDir, "temp_images_internal") // Временная папка
     tempImagesDir.mkdirs()
 
     val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -25,18 +27,6 @@ fun createFileProviderTempUri(context: Context): Uri? {
             tempImageFile
         )
     } catch (_: IllegalArgumentException) {
-        null
-    }
-}
-
-fun uriToByteArray(context: Context, uri: Uri): ByteArray? {
-    return try {
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            // Читаем все байты из потока. Функция readBytes() - это extension function из Kotlin IO.
-            inputStream.readBytes()
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
         null
     }
 }
@@ -105,5 +95,15 @@ fun uriToFileHelper(context: Context, uri: Uri): File? {
     } catch (e: Exception) {
         e.printStackTrace()
         return null
+    }
+}
+
+fun uriToBitmap(context: Context, uri: Uri): Bitmap? {
+    return try {
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        ImageDecoder.decodeBitmap(source)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }
