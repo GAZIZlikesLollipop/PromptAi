@@ -103,17 +103,19 @@ fun BaseChatScreen(
     drawState: DrawerState,
     content: @Composable ((PaddingValues) -> Unit),
 ){
-    val cnt = stringArrayResource(R.array.chatUi_cnt)
     val prompt by viewModel.userPrompt.collectAsState()
     val apiState by viewModel.apiState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val chats by viewModel.chats.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val cnt = stringArrayResource(R.array.chatUi_cnt)
+
     val chatName = if(messages.isNotEmpty() && chats.isNotEmpty()){
         chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name
     }else{
         cnt[0]
     }
+
     Scaffold(
         topBar = {
             TopChatBar(

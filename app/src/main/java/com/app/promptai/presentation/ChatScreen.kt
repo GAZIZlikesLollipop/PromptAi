@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,17 +77,19 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val alrt = stringArrayResource(R.array.alert_dialog)
+    val focusManager = LocalFocusManager.current
 
     val apiState by chatViewModel.apiState.collectAsState()
     val uiState by chatViewModel.uiState.collectAsState()
 
-    val chats by chatViewModel.chatMap.collectAsState()
+    val chatsMap by chatViewModel.chatMap.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
+    val chats by chatViewModel.chats.collectAsState()
 
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var isEditName by rememberSaveable { mutableStateOf(false) }
     var isDelete by rememberSaveable { mutableStateOf(false) }
-    var deletedChat by rememberSaveable { mutableStateOf<ChatEntity?>(null) }
+    var editedText by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(chatViewModel.isEdit) {
         if(
@@ -123,7 +126,7 @@ fun ChatScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
 
-                        items(chats.toList()) { chit ->
+                        items(chatsMap.toList()) { chit ->
                             Column {
 
                                 Text(
@@ -133,7 +136,6 @@ fun ChatScreen(
                                 )
 
                                 chit.second.forEachIndexed { ind, cht ->
-                                    val chita = chit.second[chatViewModel.manipulChatId].chat
                                     var isMenu by rememberSaveable { mutableStateOf(false) }
                                     ChatCard(
                                         isMenu = isMenu,
@@ -148,18 +150,22 @@ fun ChatScreen(
                                             chatViewModel.updateChatId(cht.chat.chatId)
                                             scope.launch { drawerState.close() }
                                         },
-                                        onRename = { isEditName = true },
+                                        onRename = {
+                                            chatViewModel.manipulChatId = ind
+                                            isEditName = true
+                                        },
                                         switchIsFavorite = {
+                                            chatViewModel.manipulChatId = ind
                                             chatViewModel.editChat(
                                                 ChatEntity(
-                                                    chatId = chita.chatId,
-                                                    name = chita.name,
-                                                    isFavorite = !chita.isFavorite
+                                                    chatId = chats[chatViewModel.manipulChatId].chat.chatId,
+                                                    name = chats[chatViewModel.manipulChatId].chat.name,
+                                                    isFavorite = !chats[chatViewModel.manipulChatId].chat.isFavorite
                                                 )
                                             )
                                         },
                                         onDelete = {
-                                            deletedChat = chita
+                                            chatViewModel.manipulChatId = ind
                                             isDelete = true
                                         },
                                         menuFalse = { isMenu = false }
@@ -336,13 +342,10 @@ fun ChatScreen(
             exit = fadeOut(tween(300,50))
         ) { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(0.35f))) }
 
-//        AnimatedVisibility(
-//            visible = isDelete,
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .zIndex(1f)
-//        ) {
-        if(isDelete) {
+        AnimatedVisibility(
+            visible = isDelete,
+            modifier = Modifier.fillMaxSize()
+        ) {
             AlertDialog(
                 onDismissRequest = { },
                 text = {
@@ -354,52 +357,74 @@ fun ChatScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            chatViewModel.deleteChat(deletedChat!!)
+                            chatViewModel.deleteChat(chats[chatViewModel.manipulChatId].chat)
                             isDelete = false
                         }
                     ) {
-                        Text(alrt[0])
+                        Text(
+                            text = alrt[0],
+                            color = MaterialTheme.colorScheme.errorContainer
+                        )
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { isDelete = false }) {
-                        Text(
-                            alrt[1],
-                            color = MaterialTheme.colorScheme.errorContainer
-                        )
+                        Text(alrt[1])
                     }
                 }
             )
         }
-//        }
 
         AnimatedVisibility(
             visible = isEditName,
             enter = fadeIn(tween(300,50)),
             exit = fadeOut(tween(300,50))
         ) {
+            LaunchedEffect(Unit) {
+                editedText = chats[chatViewModel.manipulChatId].chat.name
+            }
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ){
                 Card(
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainerHighest)
                 ){
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(16.dp),
                     ) {
                         OutlinedTextField(
-                            value = "",
-                            onValueChange = {}
+                            value = editedText,
+                            onValueChange = {editedText = it},
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            maxLines = 1,
                         )
-                        Row {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ){
                             repeat(2) {
                                 TextButton(
-                                    onClick = {}
+                                    onClick = {
+                                        isEditName = false
+                                        if(it == 1) {
+                                            chatViewModel.editChat(
+                                                ChatEntity(
+                                                    chatId = chats[chatViewModel.manipulChatId].chat.chatId,
+                                                    name = editedText
+                                                )
+                                            )
+                                        }
+                                        focusManager.clearFocus()
+                                    }
                                 ) {
-
+                                    Text(
+                                        text = if(it == 0) alrt[1] else alrt[0],
+                                        color = if(it == 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                         }
@@ -408,5 +433,4 @@ fun ChatScreen(
             }
         }
     }
-
 }

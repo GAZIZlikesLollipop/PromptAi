@@ -18,6 +18,7 @@ import kotlin.collections.forEach
 fun getChatMap(chats: List<ChatCnt>): Flow<Map<String, List<ChatCnt>>> {
 
     val map: MutableMap<String, List<ChatCnt>> = mutableStateMapOf()
+    val favoriteList: MutableList<ChatCnt> = mutableListOf()
     val todayList: MutableList<ChatCnt> = mutableListOf()
     val lastWeekList: MutableList<ChatCnt> = mutableListOf()
     val lastMonthList: MutableList<ChatCnt> = mutableListOf()
@@ -31,6 +32,10 @@ fun getChatMap(chats: List<ChatCnt>): Flow<Map<String, List<ChatCnt>>> {
         val lastMonth = !recent && !lastWeek && time >= LocalDate.now().minusDays(30)
         val thisYear = !recent && !lastWeek && !lastMonth && time.year == LocalDate.now().year
         when {
+            it.chat.isFavorite -> {
+                favoriteList.add(it)
+                map["Favorites"] = favoriteList
+            }
             recent -> {
                 todayList.add(it)
                 map["Recent"] = todayList

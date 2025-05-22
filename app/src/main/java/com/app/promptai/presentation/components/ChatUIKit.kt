@@ -2,6 +2,9 @@ package com.app.promptai.presentation.components
 
 import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -199,9 +202,7 @@ fun ChatCard(
 
         }
         Column {
-            AnimatedVisibility(
-                visible = isMenu && drawerState.isOpen
-            ) {
+            if(isMenu && drawerState.isOpen) {
                 Popup(
                     alignment = Alignment.TopStart,
                     offset = IntOffset(
@@ -210,76 +211,81 @@ fun ChatCard(
                     ),
                     onDismissRequest = menuFalse
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    AnimatedVisibility(
+                        visible = isMenu && drawerState.isOpen,
+                        enter = fadeIn(tween(300, 50)),
+                        exit = fadeOut(tween(300, 50))
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .width(150.dp)
-                                .padding(8.dp),
-//                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
                         ) {
-                            repeat(3) {
-                                val icon =
-                                    if (!chat.isFavorite) {
-                                        when (it) {
-                                            0 -> Icons.Default.Edit
-                                            1 -> Icons.TwoTone.Star
-                                            else -> Icons.Default.Delete
-                                        }
-                                    } else {
-                                        when (it) {
-                                            0 -> Icons.Default.Edit
-                                            1 -> Icons.Outlined.Star
-                                            else -> Icons.Default.Delete
-                                        }
-                                    }
-                                val text =
-                                    if (!chat.isFavorite) {
-                                        when (it) {
-                                            0 -> poopCnt[0]
-                                            1 -> poopCnt[2]
-                                            else -> poopCnt[1]
-                                        }
-                                    } else {
-                                        when (it) {
-                                            0 -> poopCnt[0]
-                                            1 -> poopCnt[3]
-                                            else -> poopCnt[1]
-                                        }
-                                    }
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            menuFalse()
+                            Column(
+                                modifier = Modifier
+                                    .width(150.dp)
+                                    .padding(8.dp),
+//                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                repeat(3) {
+                                    val icon =
+                                        if (!chat.isFavorite) {
                                             when (it) {
-                                                0 -> onRename
-                                                1 -> switchIsFavorite
-                                                else ->  onDelete
+                                                0 -> Icons.Default.Edit
+                                                1 -> Icons.TwoTone.Star
+                                                else -> Icons.Default.Delete
                                             }
-                                        },
-                                    horizontalArrangement = Arrangement.SpaceAround,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = text,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Text(
-                                        text = text,
-                                        modifier = Modifier.fillMaxWidth()
-                                            .padding(8.dp),
-                                        color = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground,
-                                        style = MaterialTheme.typography.titleLarge
-                                    )
-                                }
-                                if (it != 2) {
-                                    HorizontalDivider()
+                                        } else {
+                                            when (it) {
+                                                0 -> Icons.Default.Edit
+                                                1 -> Icons.Outlined.Star
+                                                else -> Icons.Default.Delete
+                                            }
+                                        }
+                                    val text =
+                                        if (!chat.isFavorite) {
+                                            when (it) {
+                                                0 -> poopCnt[0]
+                                                1 -> poopCnt[2]
+                                                else -> poopCnt[1]
+                                            }
+                                        } else {
+                                            when (it) {
+                                                0 -> poopCnt[0]
+                                                1 -> poopCnt[3]
+                                                else -> poopCnt[1]
+                                            }
+                                        }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                menuFalse()
+                                                when (it) {
+                                                    0 -> onRename()
+                                                    1 -> switchIsFavorite()
+                                                    else -> onDelete()
+                                                }
+                                            },
+                                        horizontalArrangement = Arrangement.SpaceAround,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = text,
+                                            modifier = Modifier.size(24.dp),
+                                            tint = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground
+                                        )
+                                        Text(
+                                            text = text,
+                                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                            color = if (it == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.onBackground,
+                                            style = MaterialTheme.typography.titleLarge
+                                        )
+                                    }
+                                    if (it != 2) {
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }

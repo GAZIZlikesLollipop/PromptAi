@@ -36,7 +36,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.lang.System
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(
@@ -108,7 +107,6 @@ class ChatViewModel(
         )
     
     val model = GenerativeModel(
-//        modelName = "gemini-2.0-flash",
         modelName = "gemini-2.5-flash-preview-04-17",
         apiKey = BuildConfig.apiKey
     )
