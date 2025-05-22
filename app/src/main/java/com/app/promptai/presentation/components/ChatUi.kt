@@ -5,7 +5,9 @@ package com.app.promptai.presentation.components
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -92,6 +94,7 @@ import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
 import com.app.promptai.utils.createFileProviderTempUri
 import com.app.promptai.utils.deleteTempFile
+import com.app.promptai.utils.saveImageToInternalStorage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -226,6 +229,18 @@ fun TypingChatBar(
     val cameraPermissionState = rememberPermissionState(permission = android.Manifest.permission.CAMERA)
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
         if(it){ pictureUri?.let { picList.add(it) } }
+    }
+    var selectedPicture: Uri? by remember { mutableStateOf(null) }
+    val openGallery = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(6)
+    ) {
+        it.forEach {
+            selectedPicture = it
+            selectedPicture?.let {
+                picList.add(it)
+                saveImageToInternalStorage(context, it)
+            }
+        }
     }
 
     LaunchedEffect(isEdit) {
@@ -481,7 +496,9 @@ fun TypingChatBar(
                                             cameraPermissionState.launchPermissionRequest()
                                         }
                                     }
-                                    1 -> {}
+                                    1 -> {
+                                        openGallery.launch(PickVisualMediaRequest(PickVisualMedia.ImageAndVideo))
+                                    }
                                     else -> {}
                                 }
                             },

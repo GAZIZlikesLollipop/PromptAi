@@ -10,6 +10,9 @@ import java.util.Date
 import java.util.Locale
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.util.UUID
 
 fun createFileProviderTempUri(context: Context): Uri? {
     val externalFilesDir = context.filesDir
@@ -31,6 +34,27 @@ fun createFileProviderTempUri(context: Context): Uri? {
     }
 }
 
+fun saveImageToInternalStorage(context: Context, uri: Uri): Uri? {
+    return try {
+        val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+        if (inputStream != null) {
+            val fileName = "my_image_${UUID.randomUUID()}.jpg" // Генерируем уникальное имя файла
+            val file = File(context.filesDir, fileName) // Получаем путь к файлу во внутреннем хранилище
+
+            FileOutputStream(file).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+            inputStream.close()
+            Uri.fromFile(file) // Возвращаем URI сохраненного файла
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
 fun deleteTempFile(context: Context, uri: Uri) {
     try {
         // Предпочтительный способ удаления по URI - через ContentResolver
@@ -38,20 +62,13 @@ fun deleteTempFile(context: Context, uri: Uri) {
         if (deletedRows > 0) {
             // Логирование: "Временный файл удален через ContentResolver: $uri"
         } else {
-            // Логирование: "Не удалось удалить временный файл через ContentResolver: $uri"
-            // Если ContentResolver не сработал (например, URI не полностью поддерживается delete),
-            // можно попробовать удалить как File, если известен путь через uriToFileHelper.
-            // Это менее универсально для всех URI, но может сработать для FileProvider URIs, которые мы сами создали.
             val file = uriToFileHelper(context, uri)
             if (file?.exists() == true) {
                 file.delete()
-                // Логирование: "Временный файл удален через File.delete(): ${file.absolutePath}"
             } else {
-                // Логирование: "Не удалось удалить временный файл ни одним способом: $uri"
             }
         }
     } catch (e: Exception) {
-        // Логирование ошибки: "Ошибка при удалении временного файла $uri", e
         e.printStackTrace() // Вывод стека ошибок в лог
     }
 }
