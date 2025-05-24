@@ -5,27 +5,35 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.twotone.Star
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.HorizontalDivider
@@ -41,18 +49,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import androidx.core.net.toFile
+import coil3.compose.AsyncImage
 import com.app.promptai.R
 import com.app.promptai.data.database.ChatEntity
+import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
+import com.app.promptai.presentation.ChatViewModel
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -220,12 +236,7 @@ fun ChatCard(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerHighest
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .width(150.dp)
-                                    .padding(8.dp),
-//                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
+                            Column(modifier = Modifier.width(150.dp).padding(8.dp),) {
                                 repeat(3) {
                                     val icon =
                                         if (!chat.isFavorite) {
@@ -293,5 +304,85 @@ fun ChatCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ChatContent(
+    msg: MessageEntity,
+    chatViewModel: ChatViewModel,
+    messages: List<MessageEntity>,
+    ind: Int
+){
+    if (msg.senderType == SenderType.USER) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.End
+        ) {
+            if (msg.pictures.isNotEmpty() || msg.files.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    items(msg.files) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(Color.Transparent),
+                            modifier = Modifier.width(200.dp),
+                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainerHighest)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Column{
+                                    Text(
+                                        it.toFile().name,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        "${String.format(Locale.getDefault(),"%.1f",it.toFile().length()/(1024.0*1024.0))}MB",
+                                        color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    items(msg.pictures) {
+                        AsyncImage(
+                            model = it,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .size(100.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+            ChatContent(
+                message = msg.content,
+                senderType = SenderType.USER,
+                onEdit = {
+                    chatViewModel.isEdit = true
+                    chatViewModel.editingMessageId = ind
+                }
+            )
+        }
+    } else {
+        ChatContent(
+            message = msg.content,
+            senderType = SenderType.AI,
+            onRegenerate = { chatViewModel.regenerateResponse(message = messages[ind - 1]) }
+        )
     }
 }

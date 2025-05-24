@@ -1,4 +1,4 @@
-package com.app.promptai
+package com.app.promptai.utils
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost

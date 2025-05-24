@@ -1,7 +1,6 @@
 package com.app.promptai.presentation
 
 import android.app.Application
-import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -22,6 +21,8 @@ import com.app.promptai.data.repository.ChatRepository
 import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
 import com.app.promptai.utils.getChatMap
+import com.app.promptai.utils.getFileNameFromUri
+import com.app.promptai.utils.getMimeTypeFromFileUri
 import com.app.promptai.utils.uriToBitmap
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(
@@ -57,6 +60,7 @@ class ChatViewModel(
     )
 
     val picList = mutableStateListOf<Uri>()
+    val fileList = mutableStateListOf<Uri>()
 
     var msgId by mutableIntStateOf(0)
 
@@ -189,20 +193,49 @@ class ChatViewModel(
     fun sendRequest(
         prompt: String,
         bitmap: List<Bitmap> = emptyList(),
-        onResponse: (String) -> Unit
+        onResponse: (String) -> Unit,
+        files: List<Uri>
     ){
         _apiState.value = ApiState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = chat.sendMessage(
                     content {
+                        text(prompt)
                         if(bitmap.isNotEmpty()) {
                             bitmap.forEach {
                                 image(it)
                             }
                         }
 
-                        text(prompt)
+                        if(files.isNotEmpty()){
+                            files.forEach { uri ->
+                                val file = getMimeTypeFromFileUri(uri)
+                                var data: ByteArray? = null
+                                val inputStream: InputStream? = application.contentResolver.openInputStream(uri)
+
+                                inputStream?.use { input ->
+                                    val byteArrayOutputStream = ByteArrayOutputStream()
+                                    val buffer = ByteArray(1024)
+                                    var bytesRead: Int
+                                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                                        byteArrayOutputStream.write(buffer, 0, bytesRead)
+                                    }
+                                    data = byteArrayOutputStream.toByteArray()
+                                }
+
+                                if(file != null && data != null && file != "application/octet-stream"){
+                                    blob(file, data)
+                                }else{
+                                    val inputStream = application.contentResolver.openInputStream(uri)
+                                    val content = inputStream?.bufferedReader().use { it?.readText() }
+                                    if(content != null){
+                                        text("file: ${getFileNameFromUri(application,uri)}\n${content}")
+                                    }
+                                }
+
+                            }
+                        }
                     }
                 )
                 userPrompt.value = ""
@@ -216,10 +249,11 @@ class ChatViewModel(
                 if(chats.value[currentChatId.value.toInt()].chat.name == application.getString(R.string.new_chat)) {
                     setChatName()
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                userPrompt.value = ""
                 _apiState.value = ApiState.Error
-//                Log.e("API","${e.localizedMessage}")
-                Log.e("API","api error")
+                Log.e("API","${e.localizedMessage}")
+//                Log.e("API","api error")
             }
         }
     }
@@ -228,17 +262,21 @@ class ChatViewModel(
         pics: List<Uri> = emptyList(),
         message: MessageEntity,
         prompt: String? = null,
-        context: Context
+        files: List<Uri> = emptyList()
     ){
         val bitmapList = mutableListOf<Bitmap>()
+        val chatId = currentChatId.value
         pics.forEach {
-            uriToBitmap(context,it)?.let { element -> bitmapList.add(element) }
+            uriToBitmap(application,it)?.let { element -> bitmapList.add(element) }
         }
-        viewModelScope.launch(Dispatchers.IO){
-            chatRepository.editMessage(
-                messageId = message.messageId+1,
-                message = "",
-                pictures = pics
+        viewModelScope.launch {
+            chatRepository.updateMessage(
+                MessageEntity(
+                    messageId = message.messageId+1,
+                    content = "",
+                    senderType = SenderType.AI,
+                    chatOwnerId = chatId
+                )
             )
             sendRequest(
                 prompt = prompt ?: message.content,
@@ -246,12 +284,17 @@ class ChatViewModel(
                 onResponse = {
                     viewModelScope.launch {
                         _apiState.value = ApiState.Success
-                        chatRepository.editMessage(
-                            messageId = message.messageId + 1,
-                            message = it
+                        chatRepository.updateMessage(
+                            MessageEntity(
+                                messageId = message.messageId + 1,
+                                content = it,
+                                chatOwnerId = chatId,
+                                senderType = SenderType.AI
+                            )
                         )
                     }
-                }
+                },
+                files = files,
             )
         }
     }
@@ -288,7 +331,7 @@ class ChatViewModel(
     fun editMessage(
         text: String,
         pics: List<Uri>,
-        context: Context
+        files: List<Uri>
     ){
         isEdit = false
         viewModelScope.launch {
@@ -298,15 +341,19 @@ class ChatViewModel(
                 }
             }
             val message = messages.value[editingMessageId]
-            chatRepository.editMessage(
-                messageId = message.messageId,
-                message = text
+            chatRepository.updateMessage(
+                MessageEntity(
+                    messageId = message.messageId,
+                    content = text,
+                    chatOwnerId = currentChatId.value,
+                    senderType = SenderType.USER
+                )
             )
             regenerateResponse(
                 message = message,
                 prompt = text,
                 pics = pics,
-                context = context
+                files = files
             )
         }
     }
@@ -314,11 +361,11 @@ class ChatViewModel(
     fun getResponse(
         prompt: String,
         pics: List<Uri>,
-        context: Context
+        files: List<Uri>
     ) {
         val bitmapList = mutableListOf<Bitmap>()
         pics.forEach {
-            uriToBitmap(context,it)?.let { bitmapList.add(it) }
+            uriToBitmap(application,it)?.let { bitmapList.add(it) }
         }
         val chatId = currentChatId.value
         viewModelScope.launch {
@@ -327,7 +374,8 @@ class ChatViewModel(
                     chatOwnerId = chatId,
                     content = prompt,
                     senderType = SenderType.USER,
-                    pictures = pics
+                    pictures = pics,
+                    files = files
                 )
             )
             chatRepository.addMessage(
@@ -343,12 +391,17 @@ class ChatViewModel(
                 onResponse = {
                     viewModelScope.launch(Dispatchers.IO) {
                         _apiState.value = ApiState.Success
-                        chatRepository.editMessage(
-                            messageId = messages.value.last().messageId,
-                            message = it
+                        chatRepository.updateMessage(
+                            MessageEntity(
+                                messageId = messages.value.last().messageId,
+                                content = it,
+                                chatOwnerId = chatId,
+                                senderType = SenderType.AI
+                            )
                         )
                     }
-                }
+                },
+                files = files,
             )
         }
     }

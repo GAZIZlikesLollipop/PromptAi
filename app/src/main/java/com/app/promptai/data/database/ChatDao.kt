@@ -26,14 +26,10 @@ interface ChatDao {
     suspend fun insertMessage(message: MessageEntity)
 
     @Update
-    suspend fun editChat(chat: ChatEntity)
+    suspend fun updateChat(chat: ChatEntity)
 
-    @Query("UPDATE messages SET content = :newContent WHERE messageId = :msgId AND pictures = :pics")
-    suspend fun editMessage(
-        msgId: Long,
-        newContent: String,
-        pics: List<Uri>
-    )
+    @Update
+    suspend fun updateMessage(message: MessageEntity)
 
     @Delete
     suspend fun deleteChat(chat: ChatEntity)

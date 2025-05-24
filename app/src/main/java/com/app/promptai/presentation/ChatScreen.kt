@@ -10,15 +10,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -48,24 +48,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.app.promptai.R
 import com.app.promptai.data.database.ChatEntity
-import com.app.promptai.data.database.SenderType
 import com.app.promptai.presentation.components.BaseChatScreen
 import com.app.promptai.presentation.components.ChatCard
 import com.app.promptai.presentation.components.ChatContent
 import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -75,7 +69,6 @@ fun ChatScreen(
     val cnt = stringArrayResource(R.array.chat_cnt)
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val alrt = stringArrayResource(R.array.alert_dialog)
     val focusManager = LocalFocusManager.current
 
@@ -92,12 +85,13 @@ fun ChatScreen(
     var editedText by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(chatViewModel.isEdit) {
-        if(
-            messages.isNotEmpty() &&
-            messages[chatViewModel.editingMessageId].pictures.isNotEmpty() &&
-            chatViewModel.isEdit == true
-        ) {
-            chatViewModel.picList.addAll(messages[chatViewModel.editingMessageId].pictures)
+        if(messages.isNotEmpty()) {
+            if (messages[chatViewModel.editingMessageId].pictures.isNotEmpty()) {
+                if (chatViewModel.isEdit == true) chatViewModel.picList.addAll(messages[chatViewModel.editingMessageId].pictures) else chatViewModel.picList.clear()
+            }
+            if(messages[chatViewModel.editingMessageId].files.isNotEmpty()){
+                if (chatViewModel.isEdit == true) chatViewModel.fileList.addAll(messages[chatViewModel.editingMessageId].files) else chatViewModel.fileList.clear()
+            }
         }
     }
 
@@ -185,39 +179,24 @@ fun ChatScreen(
                 when {
                     uiState is UiState.Success && messages.isNotEmpty() -> {
                         LaunchedEffect(apiState is ApiState.Success || apiState is ApiState.Error || apiState is ApiState.Loading) {
-                            delay(200)
-                            listState.animateScrollToItem(messages.size)
+//                            delay(200)
+                            listState.animateScrollToItem(messages.lastIndex)
                         }
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.fillMaxSize().padding(it),
+                            modifier = Modifier.fillMaxSize().padding(it).offset(y = 50.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(36.dp)
                         ) {
                             itemsIndexed(messages) { ind, msg ->
-                                if (apiState is ApiState.Error || msg.content.isBlank() && apiState !is ApiState.Loading) {
+                                if (apiState is ApiState.Error || msg.content.isBlank() && apiState !is ApiState.Loading && apiState !is ApiState.Success) {
                                     if (msg.content.isNotBlank()) {
-                                        if (msg.senderType == SenderType.USER) {
-                                            ChatContent(
-                                                message = msg.content,
-                                                senderType = SenderType.USER,
-                                                onEdit = {
-                                                    chatViewModel.isEdit = true
-                                                    chatViewModel.editingMessageId = ind
-                                                }
-                                            )
-                                        } else {
-                                            ChatContent(
-                                                message = msg.content,
-                                                senderType = SenderType.AI,
-                                                onRegenerate = {
-                                                    chatViewModel.regenerateResponse(
-                                                        message = messages[ind - 1],
-                                                        context = context
-                                                    )
-                                                }
-                                            )
-                                        }
+                                        ChatContent(
+                                            msg = msg,
+                                            chatViewModel = chatViewModel,
+                                            messages = messages,
+                                            ind = ind
+                                        )
                                     } else {
                                         Box(
                                             modifier = Modifier.fillMaxWidth(),
@@ -235,89 +214,45 @@ fun ChatScreen(
                                                 ),
                                                 tonalElevation = 12.dp,
                                                 shadowElevation = 12.dp,
-                                                border = BorderStroke(
-                                                    2.dp,
-                                                    MaterialTheme.colorScheme.onError
-                                                )
+                                                border = BorderStroke(2.dp, MaterialTheme.colorScheme.onError)
                                             ) {
-                                                Column(
-                                                    modifier = Modifier.padding(16.dp)
-                                                ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
                                                         cnt[9],
-                                                        style = MaterialTheme.typography.titleLarge,
                                                         color = MaterialTheme.colorScheme.onError
                                                     )
+                                                    Spacer(Modifier.height(12.dp))
                                                     Button(
                                                         onClick = {
                                                             chatViewModel.regenerateResponse(
                                                                 message = messages[ind - 1],
-                                                                context = context
+                                                                pics = msg.pictures,
+                                                                files = msg.files
                                                             )
                                                         },
                                                         colors = ButtonDefaults.buttonColors(
                                                             containerColor = MaterialTheme.colorScheme.errorContainer,
                                                             contentColor = MaterialTheme.colorScheme.error
                                                         ),
-                                                        border = BorderStroke(
-                                                            2.dp,
-                                                            MaterialTheme.colorScheme.onError
-                                                        )
+                                                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.onError)
                                                     ) {
-                                                        Text(
-                                                            cnt[10]
-                                                        )
+                                                        Text(cnt[10])
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 } else {
-                                    if (msg.senderType == SenderType.USER) {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalAlignment = Alignment.End
-                                        ) {
-                                            if (msg.pictures.isNotEmpty()) {
-                                                LazyRow(
-                                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                    modifier = Modifier.offset(x = (-16).dp)
-                                                ) {
-                                                    items(msg.pictures) {
-                                                        AsyncImage(
-                                                            model = it,
-                                                            contentDescription = null,
-                                                            modifier = Modifier
-                                                                .clip(RoundedCornerShape(16.dp))
-                                                                .size(100.dp),
-                                                            contentScale = ContentScale.Crop
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            ChatContent(
-                                                message = msg.content,
-                                                senderType = SenderType.USER,
-                                                onEdit = {
-                                                    chatViewModel.isEdit = true
-                                                    chatViewModel.editingMessageId = ind
-                                                }
-                                            )
-                                        }
-                                    } else {
-                                        ChatContent(
-                                            message = msg.content,
-                                            senderType = SenderType.AI,
-                                            onRegenerate = {
-                                                chatViewModel.regenerateResponse(
-                                                    message = messages[ind - 1],
-                                                    context = context
-                                                )
-                                            }
-                                        )
-                                    }
+                                    ChatContent(
+                                        msg = msg,
+                                        chatViewModel = chatViewModel,
+                                        messages = messages,
+                                        ind = ind
+                                    )
                                 }
                             }
+                            item {}
+                            item {}
                             item {}
                         }
                     }

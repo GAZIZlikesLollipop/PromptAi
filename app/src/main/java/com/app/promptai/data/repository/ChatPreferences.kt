@@ -12,7 +12,7 @@ interface ChatPreferences {
     suspend fun editChatId(chatID: Long)
 }
 
-class ChatPreferencesRepository(private val context: Context): ChatPreferences{
+class ChatPreferencesRepository(context: Context): ChatPreferences{
     val dataStore = context.dataStore
     private companion object {
         val CURRENT_CHAT_ID_KEY = longPreferencesKey("current_chat_id")

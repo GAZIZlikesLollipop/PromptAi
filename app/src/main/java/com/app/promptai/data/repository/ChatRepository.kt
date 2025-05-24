@@ -14,11 +14,7 @@ interface ChatRepo {
     suspend fun addChat(chat: ChatEntity)
     suspend fun addMessage(message: MessageEntity)
     suspend fun editChat(chat: ChatEntity)
-    suspend fun editMessage(
-        messageId: Long,
-        message: String,
-        pictures: List<Uri> = emptyList()
-    )
+    suspend fun updateMessage(message: MessageEntity)
     suspend fun deleteChat(chat: ChatEntity)
     suspend fun deleteMessage(message: MessageEntity)
 }
@@ -46,15 +42,11 @@ class ChatRepository(private val chatDao: ChatDao): ChatRepo {
     }
 
     override suspend fun editChat(chat: ChatEntity){
-        chatDao.editChat(chat)
+        chatDao.updateChat(chat)
     }
 
-    override suspend fun editMessage(
-        messageId: Long,
-        message: String,
-        pictures: List<Uri>
-    ) {
-        chatDao.editMessage(messageId,message,pictures)
+    override suspend fun updateMessage(message: MessageEntity) {
+        chatDao.updateMessage(message)
     }
 
     override suspend fun deleteMessage(message: MessageEntity) {

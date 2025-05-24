@@ -13,6 +13,7 @@ import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
 import com.app.promptai.presentation.ChatViewModel
 import com.app.promptai.presentation.theme.PromptAiTheme
+import com.app.promptai.utils.AppNavigation
 import com.app.promptai.utils.ChatViewModelFactory
 
 val Context.dataStore by preferencesDataStore("chat_preferences")
@@ -25,7 +26,6 @@ class MainActivity : ComponentActivity() {
         val chatPreferences = ChatPreferencesRepository(this)
         val chatRepository = ChatRepository(db.chatDao())
         chatViewModel = viewModels<ChatViewModel> { ChatViewModelFactory(chatRepository,chatPreferences,application) }.value
-
         setContent {
             PromptAiTheme {
                 AppNavigation(chatViewModel)

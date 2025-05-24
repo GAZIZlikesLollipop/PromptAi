@@ -28,9 +28,10 @@ data class ChatEntity(
 data class MessageEntity(
     @PrimaryKey(autoGenerate = true) val messageId: Long = 0,
     val chatOwnerId: Long,
-    val content: String,
+    val content: String = "",
     val senderType: SenderType,
-    val pictures: List<Uri> = emptyList()
+    val pictures: List<Uri> = emptyList(),
+    val files: List<Uri> = emptyList()
 )
 
 enum class SenderType { USER, AI }

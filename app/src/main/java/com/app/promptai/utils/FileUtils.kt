@@ -1,22 +1,23 @@
 package com.app.promptai.utils
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Environment
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import java.io.FileOutputStream
-import java.io.InputStream
 import java.util.UUID
 
 fun createFileProviderTempUri(context: Context): Uri? {
-    val externalFilesDir = context.filesDir
-    val tempImagesDir = File(externalFilesDir, "temp_images_internal") // Временная папка
+    val tempImagesDir = File(context.filesDir, "temp_images_internal") // Временная папка
     tempImagesDir.mkdirs()
 
     val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -34,18 +35,41 @@ fun createFileProviderTempUri(context: Context): Uri? {
     }
 }
 
-fun saveImageToInternalStorage(context: Context, uri: Uri): Uri? {
+fun saveFileToInternalStorage(context: Context, uri: Uri): Uri? { // Изменено название для ясности
     return try {
         val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
         if (inputStream != null) {
-            val fileName = "my_image_${UUID.randomUUID()}.jpg" // Генерируем уникальное имя файла
-            val file = File(context.filesDir, fileName) // Получаем путь к файлу во внутреннем хранилище
 
-            FileOutputStream(file).use { outputStream ->
-                inputStream.copyTo(outputStream)
+            val mimeType: String? = context.contentResolver.getType(uri)
+            val detectedExtension: String? = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+
+            // 1. Правильное получение имени файла из Uri (для content://)
+            // Попытаемся получить имя файла из _display_name
+            val originalFileName = getFileNameFromUri(context, uri)
+
+            // 2. Формируем безопасное и уникальное имя файла
+            // Удаляем потенциальное расширение из оригинального имени, чтобы не дублировать
+            val baseFileName = originalFileName?.substringBeforeLast('.') ?: "file"
+            val uniqueId = UUID.randomUUID().toString()
+
+            val finalFileName = if (detectedExtension != null) {
+                "${baseFileName}_${uniqueId}.$detectedExtension"
+            } else {
+                // Если расширение не определено, добавляем UUID без расширения
+                "${baseFileName}_${uniqueId}"
             }
-            inputStream.close()
-            Uri.fromFile(file) // Возвращаем URI сохраненного файла
+
+
+            val destinationFile = File(context.filesDir, finalFileName) // Получаем путь к файлу во внутреннем хранилище
+
+            // 3. Используем 'use' для обоих потоков для безопасного закрытия
+            FileOutputStream(destinationFile).use { outputStream ->
+                inputStream.use { input -> // Закрываем inputStream автоматически
+                    input.copyTo(outputStream)
+                }
+            }
+
+            Uri.fromFile(destinationFile) // Возвращаем URI сохраненного файла
         } else {
             null
         }
@@ -53,6 +77,29 @@ fun saveImageToInternalStorage(context: Context, uri: Uri): Uri? {
         e.printStackTrace()
         null
     }
+}
+
+fun getMimeTypeFromFileUri(uri: Uri): String? {
+    val extension = MimeTypeMap.getFileExtensionFromUrl(uri.toString())
+    return if (extension != null) {
+        MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
+    } else {
+        null
+    }
+}
+
+fun getFileNameFromUri(context: Context, uri: Uri): String? {
+    var fileName: String? = null
+    val cursor = context.contentResolver.query(uri, null, null, null, null)
+    cursor?.use {
+        if (it.moveToFirst()) {
+            val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1) {
+                fileName = it.getString(nameIndex)
+            }
+        }
+    }
+    return fileName
 }
 
 fun deleteTempFile(context: Context, uri: Uri) {
@@ -65,7 +112,6 @@ fun deleteTempFile(context: Context, uri: Uri) {
             val file = uriToFileHelper(context, uri)
             if (file?.exists() == true) {
                 file.delete()
-            } else {
             }
         }
     } catch (e: Exception) {
