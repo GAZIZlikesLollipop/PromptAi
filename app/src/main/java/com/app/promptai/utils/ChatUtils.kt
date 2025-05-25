@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import kotlin.collections.forEach
 
 fun getChatMap(chats: List<ChatCnt>): Flow<Map<String, List<ChatCnt>>> {
@@ -78,4 +79,24 @@ class ChatViewModelFactory(
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
+}
+
+fun bytesToString(bytes: Long): String {
+    val byte = when{
+        bytes < 1025 -> bytes / 1024.0
+        bytes < (1024 * 1024) + 1 -> bytes / (1024.0*1024.0)
+        bytes < (1024 * 1024 * 1024) + 1 -> bytes / (1024.0*1024.0*1024.0)
+        else -> bytes / (1024.0*1024.0*1024.0*1024.0)
+    }
+
+    val finaleBytes = String.format(Locale.getDefault(),"%.2f",byte)
+
+    val finalResp = when {
+        bytes < 1025 -> "$finaleBytes KB"
+        bytes < (1024 * 1024) + 1 -> "$finaleBytes MB"
+        bytes < (1024 * 1024 * 1024) + 1 -> "$finaleBytes GB"
+        else -> "$finaleBytes TB"
+    }
+
+    return finalResp
 }

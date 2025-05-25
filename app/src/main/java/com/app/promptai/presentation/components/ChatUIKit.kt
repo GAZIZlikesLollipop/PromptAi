@@ -69,6 +69,8 @@ import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
 import com.app.promptai.presentation.ChatViewModel
+import com.app.promptai.utils.ApiState
+import com.app.promptai.utils.bytesToString
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -90,93 +92,6 @@ private fun ChatText(text: String){
         onClick = {},
         onLinkClicked = {},
     )
-}
-
-@Composable
-fun ChatContent(
-    message: String,
-    senderType: SenderType,
-    onRegenerate: () -> Unit = {},
-    onEdit: () -> Unit = {}
-){
-    val coroutine = rememberCoroutineScope()
-    val clipboardManager = LocalClipboard.current
-    val cnt = stringArrayResource(R.array.chat_cnt)
-
-    if(message.isNotEmpty() || senderType == SenderType.USER) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = if (senderType == SenderType.USER) Alignment.End else Alignment.Start
-        ) {
-            Surface(
-                shape = RoundedCornerShape(
-                    bottomEnd = 24.dp,
-                    bottomStart = 24.dp,
-                    topEnd = if (senderType == SenderType.USER) 4.dp else 24.dp,
-                    topStart = if (senderType == SenderType.USER) 24.dp else 4.dp,
-                ),
-                color = if (senderType == SenderType.USER) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.padding(16.dp),
-                contentColor = MaterialTheme.colorScheme.onBackground,
-                tonalElevation = 12.dp,
-                shadowElevation = 12.dp
-            ) {
-                ChatText(message)
-            }
-            Row(
-                modifier = Modifier.offset(x = if (senderType == SenderType.USER) (-12).dp else 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(2) {
-
-                    val text = if(it == 0) cnt[6] else if (senderType == SenderType.USER) cnt[7] else cnt[8]
-                    val icon = if(it == 0)  Icons.Outlined.ContentCopy else if (senderType == SenderType.USER) Icons.Outlined.Edit else Icons.Outlined.Cached
-
-                    Surface(
-                        onClick = {
-                            if(it == 0){
-                                coroutine.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("", message))) }
-                            }else{
-                                if(senderType == SenderType.AI) onRegenerate() else onEdit()
-                            }
-                        },
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceAround,
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = text,
-                                tint = MaterialTheme.colorScheme.onBackground.copy(0.35f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Text(
-                                text = text,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onBackground.copy(0.35f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }else{
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp,
-                modifier = Modifier,
-                trackColor = MaterialTheme.colorScheme.onBackground,
-                strokeCap = StrokeCap.Round,
-            )
-        }
-    }
 }
 
 @Composable
@@ -215,7 +130,6 @@ fun ChatCard(
                 color = MaterialTheme.colorScheme.onBackground.copy(0.5f),
                 style = MaterialTheme.typography.bodyMedium
             )
-
         }
         Column {
             if(isMenu && drawerState.isOpen) {
@@ -236,7 +150,7 @@ fun ChatCard(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerHighest
                         ) {
-                            Column(modifier = Modifier.width(150.dp).padding(8.dp),) {
+                            Column(modifier = Modifier.width(150.dp).padding(8.dp)) {
                                 repeat(3) {
                                     val icon =
                                         if (!chat.isFavorite) {
@@ -308,11 +222,102 @@ fun ChatCard(
 }
 
 @Composable
+fun ChatCnt(
+    message: String,
+    senderType: SenderType,
+    onRegenerate: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    apiState: ApiState
+){
+    val coroutine = rememberCoroutineScope()
+    val clipboardManager = LocalClipboard.current
+    val cnt = stringArrayResource(R.array.chat_cnt)
+
+    if(message.isNotEmpty() || senderType == SenderType.USER) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = if (senderType == SenderType.USER) Alignment.End else Alignment.Start
+        ) {
+            Surface(
+                shape = RoundedCornerShape(
+                    bottomEnd = 24.dp,
+                    bottomStart = 24.dp,
+                    topEnd = if (senderType == SenderType.USER) 4.dp else 24.dp,
+                    topStart = if (senderType == SenderType.USER) 24.dp else 4.dp,
+                ),
+                color = if (senderType == SenderType.USER) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.padding(16.dp),
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                tonalElevation = 12.dp,
+                shadowElevation = 12.dp
+            ) {
+                ChatText(message)
+            }
+            Row(
+                modifier = Modifier.offset(x = if (senderType == SenderType.USER) (-12).dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(2) {
+
+                    val text = if(it == 0) cnt[6] else if (senderType == SenderType.USER) cnt[7] else cnt[8]
+                    val icon = if(it == 0)  Icons.Outlined.ContentCopy else if (senderType == SenderType.USER) Icons.Outlined.Edit else Icons.Outlined.Cached
+                    val enabledExp = apiState is ApiState.Success || apiState is ApiState.Initial || it == 0
+
+                    Surface(
+                        onClick = {
+                            if(it == 0){
+                                coroutine.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("", message))) }
+                            }else{
+                                if(senderType == SenderType.AI) onRegenerate() else onEdit()
+                            }
+                        },
+                        enabled = enabledExp
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceAround,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = text,
+                                tint = if(!enabledExp) MaterialTheme.colorScheme.onBackground.copy(0.25f) else MaterialTheme.colorScheme.onBackground.copy(0.4f),
+                                modifier = Modifier.size(if(it == 0) 32.dp else 36.dp)
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if(!enabledExp) MaterialTheme.colorScheme.onBackground.copy(0.25f) else MaterialTheme.colorScheme.onBackground.copy(0.4f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }else{
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 3.dp,
+                modifier = Modifier,
+                trackColor = MaterialTheme.colorScheme.onBackground,
+                strokeCap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
+@Composable
 fun ChatContent(
     msg: MessageEntity,
     chatViewModel: ChatViewModel,
     messages: List<MessageEntity>,
-    ind: Int
+    ind: Int,
+    apiState: ApiState
 ){
     if (msg.senderType == SenderType.USER) {
         Column(
@@ -342,7 +347,7 @@ fun ChatContent(
                                     modifier = Modifier.size(36.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Column{
+                                Column {
                                     Text(
                                         it.toFile().name,
                                         maxLines = 1,
@@ -350,7 +355,7 @@ fun ChatContent(
                                     )
                                     Spacer(Modifier.height(5.dp))
                                     Text(
-                                        "${String.format(Locale.getDefault(),"%.1f",it.toFile().length()/(1024.0*1024.0))}MB",
+                                        bytesToString(it.toFile().length()),
                                         color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
                                     )
                                 }
@@ -369,20 +374,22 @@ fun ChatContent(
                     }
                 }
             }
-            ChatContent(
+            ChatCnt(
                 message = msg.content,
                 senderType = SenderType.USER,
                 onEdit = {
                     chatViewModel.isEdit = true
                     chatViewModel.editingMessageId = ind
-                }
+                },
+                apiState = apiState
             )
         }
     } else {
-        ChatContent(
+        ChatCnt(
             message = msg.content,
             senderType = SenderType.AI,
-            onRegenerate = { chatViewModel.regenerateResponse(message = messages[ind - 1]) }
+            onRegenerate = { chatViewModel.regenerateResponse(message = messages[ind - 1]) },
+            apiState = apiState
         )
     }
 }

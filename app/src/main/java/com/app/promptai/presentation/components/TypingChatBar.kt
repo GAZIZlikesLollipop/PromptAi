@@ -38,7 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Draw
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Language
@@ -82,13 +82,13 @@ import coil3.compose.AsyncImage
 import com.app.promptai.R
 import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
-import com.app.promptai.utils.createFileProviderTempUri
+import com.app.promptai.utils.bytesToString
+import com.app.promptai.utils.createPictureProviderTempUri
 import com.app.promptai.utils.deleteTempFile
 import com.app.promptai.utils.saveFileToInternalStorage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import java.util.Locale
 
 @Composable
 fun TypingChatBar(
@@ -182,27 +182,22 @@ fun TypingChatBar(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Draw,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(24.dp))
-                            Text(
-                                text = cnt[5],
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.EditNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = cnt[5],
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                         IconButton(
                             onClick = switchIsEdit,
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
                                 contentDescription = null,
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     }
@@ -240,7 +235,7 @@ fun TypingChatBar(
                                         )
                                         Spacer(Modifier.height(5.dp))
                                         Text(
-                                            "${String.format(Locale.getDefault(),"%.1f",it.toFile().length()/(1024.0*1024.0))}MB",
+                                            bytesToString(it.toFile().length()),
                                             color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
                                         )
                                     }
@@ -438,7 +433,7 @@ fun TypingChatBar(
                                 when(it){
                                     0 -> {
                                         if(cameraPermissionState.status.isGranted){
-                                            pictureUri = createFileProviderTempUri(context)
+                                            pictureUri = createPictureProviderTempUri(context)
                                             if(pictureUri != null) {
                                                 pictureUri?.let { takePicture.launch(it) }
                                             }

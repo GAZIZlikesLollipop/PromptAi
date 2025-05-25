@@ -195,7 +195,8 @@ fun ChatScreen(
                                             msg = msg,
                                             chatViewModel = chatViewModel,
                                             messages = messages,
-                                            ind = ind
+                                            ind = ind,
+                                            apiState = apiState
                                         )
                                     } else {
                                         Box(
@@ -226,8 +227,8 @@ fun ChatScreen(
                                                         onClick = {
                                                             chatViewModel.regenerateResponse(
                                                                 message = messages[ind - 1],
-                                                                pics = msg.pictures,
-                                                                files = msg.files
+                                                                pics = messages[ind - 1].pictures,
+                                                                files = messages[ind - 1].files
                                                             )
                                                         },
                                                         colors = ButtonDefaults.buttonColors(
@@ -247,7 +248,8 @@ fun ChatScreen(
                                         msg = msg,
                                         chatViewModel = chatViewModel,
                                         messages = messages,
-                                        ind = ind
+                                        ind = ind,
+                                        apiState = apiState
                                     )
                                 }
                             }

@@ -16,7 +16,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-fun createFileProviderTempUri(context: Context): Uri? {
+fun createPictureProviderTempUri(context: Context): Uri? {
     val tempImagesDir = File(context.filesDir, "temp_images_internal") // Временная папка
     tempImagesDir.mkdirs()
 
@@ -35,41 +35,24 @@ fun createFileProviderTempUri(context: Context): Uri? {
     }
 }
 
-fun saveFileToInternalStorage(context: Context, uri: Uri): Uri? { // Изменено название для ясности
+fun saveFileToInternalStorage(context: Context, uri: Uri): Uri? {
     return try {
         val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
         if (inputStream != null) {
 
             val mimeType: String? = context.contentResolver.getType(uri)
-            val detectedExtension: String? = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-
-            // 1. Правильное получение имени файла из Uri (для content://)
-            // Попытаемся получить имя файла из _display_name
+            val extension: String? = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
             val originalFileName = getFileNameFromUri(context, uri)
 
-            // 2. Формируем безопасное и уникальное имя файла
-            // Удаляем потенциальное расширение из оригинального имени, чтобы не дублировать
             val baseFileName = originalFileName?.substringBeforeLast('.') ?: "file"
+            val detectedExtension = originalFileName?.substringAfterLast('.') ?: extension
             val uniqueId = UUID.randomUUID().toString()
 
-            val finalFileName = if (detectedExtension != null) {
-                "${baseFileName}_${uniqueId}.$detectedExtension"
-            } else {
-                // Если расширение не определено, добавляем UUID без расширения
-                "${baseFileName}_${uniqueId}"
-            }
-
-
+            val finalFileName = "${baseFileName}_${uniqueId}.$detectedExtension"
             val destinationFile = File(context.filesDir, finalFileName) // Получаем путь к файлу во внутреннем хранилище
 
-            // 3. Используем 'use' для обоих потоков для безопасного закрытия
-            FileOutputStream(destinationFile).use { outputStream ->
-                inputStream.use { input -> // Закрываем inputStream автоматически
-                    input.copyTo(outputStream)
-                }
-            }
-
-            Uri.fromFile(destinationFile) // Возвращаем URI сохраненного файла
+            FileOutputStream(destinationFile).use { outputStream -> inputStream.use { it.copyTo(outputStream) } }
+            Uri.fromFile(destinationFile)
         } else {
             null
         }
