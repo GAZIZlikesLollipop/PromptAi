@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.app.promptai.presentation.components
 
@@ -23,6 +23,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
 import com.app.promptai.presentation.ChatViewModel
+import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import kotlinx.coroutines.launch
 
 @Composable
@@ -44,11 +46,13 @@ fun BaseChatScreen(
     content: @Composable ((PaddingValues) -> Unit),
 ){
     val prompt by viewModel.userPrompt.collectAsState()
-    val apiState by viewModel.apiState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val chats by viewModel.chats.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val cnt = stringArrayResource(R.array.chatUi_cnt)
+
+    val chatId by viewModel.currentChatId.collectAsState()
+    val apiState by remember { mutableStateOf(if(chats.isNotEmpty()) chats[chatId.toInt()].chat.chatState else ApiState.Initial) }
 
     val chatName = if(messages.isNotEmpty() && chats.isNotEmpty()){
         chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name

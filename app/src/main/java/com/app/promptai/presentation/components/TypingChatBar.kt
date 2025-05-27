@@ -418,7 +418,7 @@ fun TypingChatBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     repeat(3) {
-                        val text = when(it){
+                        val text1 = when(it){
                             0 -> cnt[2]
                             1 -> cnt[3]
                             else -> cnt[4]
@@ -463,12 +463,12 @@ fun TypingChatBar(
                             ){
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = text,
+                                    contentDescription = text1,
                                     modifier = Modifier.size(36.dp)
                                 )
                                 Spacer(Modifier.height(16.dp))
                                 Text(
-                                    text,
+                                    text1,
                                     style = MaterialTheme.typography.titleLarge,
                                     textAlign = TextAlign.Center
                                 )

@@ -47,11 +47,6 @@ class ChatViewModel(
     private val application: Application
 ) : ViewModel() {
 
-    private val _apiState: MutableStateFlow<ApiState> = MutableStateFlow(ApiState.Initial)
-    val apiState: StateFlow<ApiState> = _apiState.asStateFlow()
-//    val chatStates: MutableMap<Long, ApiState> = mutableStateMapOf()
-//    val aiChats: MutableMap<Long, Chat> = mutableStateMapOf()
-
     private val _uiState: MutableStateFlow<UiState> = MutableStateFlow(UiState.Initial)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
@@ -109,23 +104,12 @@ class ChatViewModel(
         .stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
-            emptyList<MessageEntity>()
+            emptyList()
         )
 
     val model = GenerativeModel(
         modelName = "gemini-2.5-flash-preview-04-17",
         apiKey = BuildConfig.apiKey
-    )
-
-    val chat = model.startChat(
-        if(messages.value.isNotEmpty()) {
-            listOf(
-                content("user") { messages.value.map { if (it.senderType == SenderType.USER) it.content }.joinToString(", ") },
-                content("model") { messages.value.map { if (it.senderType == SenderType.AI) it.content }.joinToString(", ") }
-            )
-        }else{
-            emptyList()
-        }
     )
 
     val userPrompt = MutableStateFlow("")
@@ -159,7 +143,6 @@ class ChatViewModel(
     }
 
     fun newChat(){
-        if(apiState.value !is ApiState.Loading) _apiState.value = ApiState.Initial
         viewModelScope.launch {
             if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty()) {
                 updateChatId(
@@ -200,10 +183,15 @@ class ChatViewModel(
         chatId: Long
     ){
         userPrompt.value = ""
-        _apiState.value = ApiState.Loading
         viewModelScope.launch(Dispatchers.IO) {
+            chatRepository.editChat(
+                ChatEntity(
+                    chatId = chatId,
+                    chatState = ApiState.Loading
+                )
+            )
             try {
-                val response = chat.sendMessage(
+                val response = chats.value[chatId.toInt()].chat.aiChat.sendMessage(
                     content {
                         text(prompt)
                         if(bitmap.isNotEmpty()) {
@@ -232,8 +220,8 @@ class ChatViewModel(
                                     text("file: ${uri.toFile().name}\n")
                                     blob(file, data)
                                 }else{
-                                    val inputStream = application.contentResolver.openInputStream(uri)
-                                    val content = inputStream?.bufferedReader().use { it?.readText() }
+                                    val inputStream1 = application.contentResolver.openInputStream(uri)
+                                    val content = inputStream1?.bufferedReader().use { it?.readText() }
                                     if(content != null){
                                         text("file: ${uri.toFile().name}\n${content}")
                                     }
@@ -245,18 +233,33 @@ class ChatViewModel(
                 )
                 val resp = response.text
                 if(resp != null) {
-                    _apiState.value = ApiState.Success
+                    chatRepository.editChat(
+                        ChatEntity(
+                            chatId = chatId,
+                            chatState = ApiState.Success
+                        )
+                    )
                     onResponse(resp)
                 }else{
-                    _apiState.value = ApiState.Error
+                    chatRepository.editChat(
+                        ChatEntity(
+                            chatId = chatId,
+                            chatState = ApiState.Error
+                        )
+                    )
                     Log.e("API","response is empty")
                 }
                 if(chats.value[chatId.toInt()].chat.name == application.getString(R.string.new_chat)) {
                     setChatName(chatId)
                 }
             } catch (e: Exception) {
-                _apiState.value = ApiState.Error
-                Log.e("API","${e.localizedMessage}")
+                chatRepository.editChat(
+                    ChatEntity(
+                        chatId = chatId,
+                        chatState = ApiState.Error
+                    )
+                )
+                Log.e("API", e.localizedMessage)
             }
         }
     }
@@ -284,7 +287,6 @@ class ChatViewModel(
                 bitmap = bitmapList,
                 onResponse = {
                     viewModelScope.launch {
-                        _apiState.value = ApiState.Success
                         chatRepository.updateMessage(
                             MessageEntity(
                                 messageId = message.messageId + 1,

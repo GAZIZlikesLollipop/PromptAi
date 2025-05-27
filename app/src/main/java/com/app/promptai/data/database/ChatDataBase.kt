@@ -3,10 +3,12 @@ package com.app.promptai.data.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.app.promptai.utils.ApiStateConverter
+import com.app.promptai.utils.ChatConvertors
 import com.app.promptai.utils.UriListConvertors
 
 @Database(entities = [ChatEntity::class, MessageEntity::class], version = 1)
-@TypeConverters(UriListConvertors::class)
+@TypeConverters(UriListConvertors::class,ChatConvertors::class,ApiStateConverter::class)
 abstract class ChatDataBase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 }

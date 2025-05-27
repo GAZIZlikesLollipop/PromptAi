@@ -7,13 +7,22 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.app.promptai.BuildConfig
+import com.app.promptai.utils.ApiState
+import com.google.ai.client.generativeai.Chat
+import com.google.ai.client.generativeai.GenerativeModel
 
 @Entity("chats")
 data class ChatEntity(
     @PrimaryKey val chatId: Long,
-    val name: String,
+    val name: String = "",
     val creationTimestamp: Long = System.currentTimeMillis(),
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val aiChat: Chat = GenerativeModel(
+        modelName = "gemini-2.5-flash",
+        apiKey = BuildConfig.apiKey
+    ).startChat(),
+    val chatState: ApiState = ApiState.Initial
 )
 
 @Entity("messages",

@@ -72,12 +72,14 @@ fun ChatScreen(
     val alrt = stringArrayResource(R.array.alert_dialog)
     val focusManager = LocalFocusManager.current
 
-    val apiState by chatViewModel.apiState.collectAsState()
     val uiState by chatViewModel.uiState.collectAsState()
 
     val chatsMap by chatViewModel.chatMap.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
     val chats by chatViewModel.chats.collectAsState()
+
+    val chatId by chatViewModel.currentChatId.collectAsState()
+    val apiState by remember { mutableStateOf(if(chats.isNotEmpty()) chats[chatId.toInt()].chat.chatState else ApiState.Initial) }
 
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var isEditName by rememberSaveable { mutableStateOf(false) }
