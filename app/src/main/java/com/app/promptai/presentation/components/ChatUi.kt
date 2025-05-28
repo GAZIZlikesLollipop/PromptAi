@@ -23,8 +23,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +50,6 @@ fun BaseChatScreen(
     val cnt = stringArrayResource(R.array.chatUi_cnt)
 
     val chatId by viewModel.currentChatId.collectAsState()
-    val apiState by remember { mutableStateOf(if(chats.isNotEmpty()) chats[chatId.toInt()].chat.chatState else ApiState.Initial) }
 
     val chatName = if(messages.isNotEmpty() && chats.isNotEmpty()){
         chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name
@@ -73,7 +70,7 @@ fun BaseChatScreen(
             TypingChatBar(
                 text = prompt,
                 sendPrompt = viewModel::getResponse,
-                apiState = apiState,
+                apiState = if(chats.isNotEmpty() && chatId.toInt() <= chats.lastIndex)chats[chatId.toInt()].chat.chatState else ApiState.Initial,
                 isMore = viewModel.isMore,
                 uiState = uiState,
                 onMore = viewModel::switchIsMore,
@@ -86,7 +83,8 @@ fun BaseChatScreen(
                 switchIsWebSearch = viewModel::switchIsWebSearch,
                 switchIsMore = viewModel::switchIsMore,
                 picList = viewModel.picList,
-                fileList = viewModel.fileList
+                fileList = viewModel.fileList,
+                aiMsg = viewModel.aiMsg
             )
         },
         modifier = Modifier.fillMaxSize()

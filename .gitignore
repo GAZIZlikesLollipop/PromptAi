@@ -14,3 +14,8 @@
 .cxx
 local.properties
 /app/schemas/com.app.promptai.data.database.ChatDataBase/1.json
+.idea/compiler.xml
+.idea/codeStyles/codeStyleConfig.xml
+.idea/deploymentTargetSelector.xml
+.idea/misc.xml
+.idea/codeStyles/Project.xml

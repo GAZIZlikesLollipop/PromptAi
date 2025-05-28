@@ -1,6 +1,7 @@
 package com.app.promptai.presentation.components
 
 import android.content.ClipData
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.twotone.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -232,81 +235,145 @@ fun ChatCnt(
     val coroutine = rememberCoroutineScope()
     val clipboardManager = LocalClipboard.current
     val cnt = stringArrayResource(R.array.chat_cnt)
-
-    if(message.isNotEmpty() || senderType == SenderType.USER) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = if (senderType == SenderType.USER) Alignment.End else Alignment.Start
-        ) {
-            Surface(
-                shape = RoundedCornerShape(
-                    bottomEnd = 24.dp,
-                    bottomStart = 24.dp,
-                    topEnd = if (senderType == SenderType.USER) 4.dp else 24.dp,
-                    topStart = if (senderType == SenderType.USER) 24.dp else 4.dp,
-                ),
-                color = if (senderType == SenderType.USER) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.padding(16.dp),
-                contentColor = MaterialTheme.colorScheme.onBackground,
-                tonalElevation = 12.dp,
-                shadowElevation = 12.dp
-            ) {
-                ChatText(message)
+    AnimatedContent(
+        targetState = message.isNotEmpty() || senderType == SenderType.USER,
+    ) { state ->
+        when {
+            !state && apiState is ApiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier,
+                        trackColor = MaterialTheme.colorScheme.onBackground,
+                        strokeCap = StrokeCap.Round,
+                    )
+                }
             }
-            Row(
-                modifier = Modifier.offset(x = if (senderType == SenderType.USER) (-12).dp else 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(2) {
-
-                    val text = if(it == 0) cnt[6] else if (senderType == SenderType.USER) cnt[7] else cnt[8]
-                    val icon = if(it == 0)  Icons.Outlined.ContentCopy else if (senderType == SenderType.USER) Icons.Outlined.Edit else Icons.Outlined.Cached
-                    val enabledExp = apiState is ApiState.Success || apiState is ApiState.Initial || it == 0
-
+            !state && apiState is ApiState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     Surface(
-                        onClick = {
-                            if(it == 0){
-                                coroutine.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("", message))) }
-                            }else{
-                                if(senderType == SenderType.AI) onRegenerate() else onEdit()
-                            }
-                        },
-                        enabled = enabledExp
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        shape = RoundedCornerShape(
+                            bottomEnd = 24.dp,
+                            bottomStart = 20.dp,
+                            topEnd = 24.dp,
+                            topStart = 3.dp
+                        ),
+                        tonalElevation = 12.dp,
+                        shadowElevation = 12.dp,
+                        border = BorderStroke(
+                            2.dp,
+                            MaterialTheme.colorScheme.onError
+                        )
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceAround,
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = text,
-                                tint = if(!enabledExp) MaterialTheme.colorScheme.onBackground.copy(0.25f) else MaterialTheme.colorScheme.onBackground.copy(0.4f),
-                                modifier = Modifier.size(if(it == 0) 32.dp else 36.dp)
-                            )
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = text,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if(!enabledExp) MaterialTheme.colorScheme.onBackground.copy(0.25f) else MaterialTheme.colorScheme.onBackground.copy(0.4f)
+                                cnt[9],
+                                color = MaterialTheme.colorScheme.onError
                             )
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = {onRegenerate()},
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(
+                                    2.dp,
+                                    MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text(cnt[10])
+                            }
                         }
                     }
                 }
             }
-        }
-    }else{
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp,
-                modifier = Modifier,
-                trackColor = MaterialTheme.colorScheme.onBackground,
-                strokeCap = StrokeCap.Round,
-            )
+            else -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = if (senderType == SenderType.USER) Alignment.End else Alignment.Start
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(
+                            bottomEnd = 24.dp,
+                            bottomStart = 24.dp,
+                            topEnd = if (senderType == SenderType.USER) 4.dp else 24.dp,
+                            topStart = if (senderType == SenderType.USER) 24.dp else 4.dp,
+                        ),
+                        color = if (senderType == SenderType.USER) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.padding(16.dp),
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        tonalElevation = 12.dp,
+                        shadowElevation = 12.dp
+                    ) {
+                        ChatText(message)
+                    }
+                    Row(
+                        modifier = Modifier.offset(x = if (senderType == SenderType.USER) (-12).dp else 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(2) {
+
+                            val text =
+                                if (it == 0) cnt[6] else if (senderType == SenderType.USER) cnt[7] else cnt[8]
+                            val icon =
+                                if (it == 0) Icons.Outlined.ContentCopy else if (senderType == SenderType.USER) Icons.Outlined.Edit else Icons.Outlined.Cached
+                            val enabledExp =
+                                apiState is ApiState.Success || apiState is ApiState.Initial || it == 0
+
+                            Surface(
+                                onClick = {
+                                    if (it == 0) {
+                                        coroutine.launch {
+                                            clipboardManager.setClipEntry(
+                                                ClipEntry(
+                                                    ClipData.newPlainText("", message)
+                                                )
+                                            )
+                                        }
+                                    } else {
+                                        if (senderType == SenderType.AI) onRegenerate() else onEdit()
+                                    }
+                                },
+                                enabled = enabledExp
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.SpaceAround,
+                                    modifier = Modifier.padding(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = text,
+                                        tint = if (!enabledExp) MaterialTheme.colorScheme.onBackground.copy(
+                                            0.25f
+                                        ) else MaterialTheme.colorScheme.onBackground.copy(0.4f),
+                                        modifier = Modifier.size(if (it == 0) 32.dp else 36.dp)
+                                    )
+                                    Text(
+                                        text = text,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = if (!enabledExp) MaterialTheme.colorScheme.onBackground.copy(
+                                            0.25f
+                                        ) else MaterialTheme.colorScheme.onBackground.copy(0.4f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -388,7 +455,7 @@ fun ChatContent(
         ChatCnt(
             message = msg.content,
             senderType = SenderType.AI,
-            onRegenerate = { chatViewModel.regenerateResponse(message = messages[ind - 1]) },
+            onRegenerate = { chatViewModel.regenerateResponse(userMsg = messages[ind - 1], aiMsg = messages[ind]) },
             apiState = apiState
         )
     }

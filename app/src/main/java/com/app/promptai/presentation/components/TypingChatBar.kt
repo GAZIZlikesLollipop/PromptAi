@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toFile
 import coil3.compose.AsyncImage
 import com.app.promptai.R
+import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
 import com.app.promptai.utils.bytesToString
@@ -99,7 +100,7 @@ fun TypingChatBar(
     uiState: UiState,
     onMore: () -> Unit,
     isEdit: Boolean,
-    editMessage: (String, List<Uri>,List<Uri>) -> Unit,
+    editMessage: (String, List<Uri>, List<Uri>, MessageEntity) -> Unit,
     previousMsg: String,
     isOpen: Boolean,
     switchIsEdit: () -> Unit,
@@ -108,6 +109,7 @@ fun TypingChatBar(
     switchIsMore: () -> Unit,
     picList: MutableList<Uri>,
     fileList: MutableList<Uri>,
+    aiMsg: MessageEntity
 ){
     var message by remember { mutableStateOf(TextFieldValue(text)) }
     val context = LocalContext.current
@@ -372,13 +374,17 @@ fun TypingChatBar(
 
                 Button(
                     onClick = {
-                        if(isEdit) editMessage(message.text,picList.toList(),fileList.toList()) else sendPrompt(message.text,picList.toList(),fileList.toList())
+                        if(isEdit){
+                            editMessage(message.text,picList.toList(),fileList.toList(),aiMsg)
+                        } else {
+                            sendPrompt(message.text,picList.toList(),fileList.toList())
+                        }
                         if(apiState !is ApiState.Error) {
                             picList.clear()
                             fileList.clear()
                         }
-                        message = TextFieldValue("")
                         focusManager.clearFocus()
+                        message = TextFieldValue("")
                     },
                     shape = CircleShape,
                     modifier = Modifier.size(32.dp),

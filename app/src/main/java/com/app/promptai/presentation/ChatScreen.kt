@@ -4,17 +4,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -24,8 +21,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
@@ -33,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -54,18 +48,16 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
-import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.presentation.components.BaseChatScreen
 import com.app.promptai.presentation.components.ChatCard
 import com.app.promptai.presentation.components.ChatContent
 import com.app.promptai.utils.ApiState
 import com.app.promptai.utils.UiState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatScreen(
-    chatViewModel: ChatViewModel
-) {
+fun ChatScreen(chatViewModel: ChatViewModel) {
     val cnt = stringArrayResource(R.array.chat_cnt)
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -79,7 +71,7 @@ fun ChatScreen(
     val chats by chatViewModel.chats.collectAsState()
 
     val chatId by chatViewModel.currentChatId.collectAsState()
-    val apiState by remember { mutableStateOf(if(chats.isNotEmpty()) chats[chatId.toInt()].chat.chatState else ApiState.Initial) }
+    val apiState = if(chats.isNotEmpty() && chatId.toInt() <= chats.lastIndex)chats[chatId.toInt()].chat.chatState else ApiState.Initial
 
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var isEditName by rememberSaveable { mutableStateOf(false) }
@@ -152,13 +144,7 @@ fun ChatScreen(
                                         },
                                         switchIsFavorite = {
                                             chatViewModel.manipulChatId = ind
-                                            chatViewModel.editChat(
-                                                ChatEntity(
-                                                    chatId = chats[chatViewModel.manipulChatId].chat.chatId,
-                                                    name = chats[chatViewModel.manipulChatId].chat.name,
-                                                    isFavorite = !chats[chatViewModel.manipulChatId].chat.isFavorite
-                                                )
-                                            )
+                                            chatViewModel.editChat(chats[chatViewModel.manipulChatId].chat.copy(isFavorite = !chats[chatViewModel.manipulChatId].chat.isFavorite))
                                         },
                                         onDelete = {
                                             chatViewModel.manipulChatId = ind
@@ -178,12 +164,12 @@ fun ChatScreen(
                 viewModel = chatViewModel,
                 drawState = drawerState
             ) {
+                LaunchedEffect(apiState) {
+                    delay(300)
+                    listState.animateScrollToItem(if(messages.lastIndex > 0) messages.lastIndex else messages.size)
+                }
                 when {
                     uiState is UiState.Success && messages.isNotEmpty() -> {
-                        LaunchedEffect(apiState is ApiState.Success || apiState is ApiState.Error || apiState is ApiState.Loading) {
-//                            delay(200)
-                            listState.animateScrollToItem(messages.lastIndex)
-                        }
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize().padding(it).offset(y = 50.dp),
@@ -191,69 +177,18 @@ fun ChatScreen(
                             verticalArrangement = Arrangement.spacedBy(36.dp)
                         ) {
                             itemsIndexed(messages) { ind, msg ->
-                                if (apiState is ApiState.Error || msg.content.isBlank() && apiState !is ApiState.Loading && apiState !is ApiState.Success) {
-                                    if (msg.content.isNotBlank()) {
-                                        ChatContent(
-                                            msg = msg,
-                                            chatViewModel = chatViewModel,
-                                            messages = messages,
-                                            ind = ind,
-                                            apiState = apiState
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentAlignment = Alignment.CenterStart
-                                        ) {
-                                            Surface(
-                                                modifier = Modifier.padding(16.dp),
-                                                color = MaterialTheme.colorScheme.surfaceContainer,
-                                                contentColor = MaterialTheme.colorScheme.onBackground,
-                                                shape = RoundedCornerShape(
-                                                    bottomEnd = 24.dp,
-                                                    bottomStart = 20.dp,
-                                                    topEnd = 24.dp,
-                                                    topStart = 3.dp
-                                                ),
-                                                tonalElevation = 12.dp,
-                                                shadowElevation = 12.dp,
-                                                border = BorderStroke(2.dp, MaterialTheme.colorScheme.onError)
-                                            ) {
-                                                Column(modifier = Modifier.padding(16.dp)) {
-                                                    Text(
-                                                        cnt[9],
-                                                        color = MaterialTheme.colorScheme.onError
-                                                    )
-                                                    Spacer(Modifier.height(12.dp))
-                                                    Button(
-                                                        onClick = {
-                                                            chatViewModel.regenerateResponse(
-                                                                message = messages[ind - 1],
-                                                                pics = messages[ind - 1].pictures,
-                                                                files = messages[ind - 1].files
-                                                            )
-                                                        },
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                                                            contentColor = MaterialTheme.colorScheme.error
-                                                        ),
-                                                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.onError)
-                                                    ) {
-                                                        Text(cnt[10])
-                                                    }
-                                                }
-                                            }
-                                        }
+                                LaunchedEffect(chatViewModel.isEdit) {
+                                    if(chatViewModel.isEdit == true){
+                                        chatViewModel.aiMsg = messages[ind]
                                     }
-                                } else {
-                                    ChatContent(
-                                        msg = msg,
-                                        chatViewModel = chatViewModel,
-                                        messages = messages,
-                                        ind = ind,
-                                        apiState = apiState
-                                    )
                                 }
+                                ChatContent(
+                                    msg = msg,
+                                    chatViewModel = chatViewModel,
+                                    messages = messages,
+                                    ind = ind,
+                                    apiState = apiState
+                                )
                             }
                             item {}
                             item {}
@@ -350,12 +285,7 @@ fun ChatScreen(
                                     onClick = {
                                         isEditName = false
                                         if(it == 1) {
-                                            chatViewModel.editChat(
-                                                ChatEntity(
-                                                    chatId = chats[chatViewModel.manipulChatId].chat.chatId,
-                                                    name = editedText
-                                                )
-                                            )
+                                            chatViewModel.editChat(chats[chatViewModel.manipulChatId].chat.copy(name = editedText))
                                         }
                                         focusManager.clearFocus()
                                     }

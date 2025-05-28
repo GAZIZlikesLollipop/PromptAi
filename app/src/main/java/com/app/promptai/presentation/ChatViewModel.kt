@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.net.toFile
@@ -17,6 +18,7 @@ import com.app.promptai.R
 import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
+import com.app.promptai.data.database.defaultChatName
 import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
 import com.app.promptai.utils.ApiState
@@ -24,6 +26,7 @@ import com.app.promptai.utils.UiState
 import com.app.promptai.utils.getChatMap
 import com.app.promptai.utils.getMimeTypeFromFileUri
 import com.app.promptai.utils.uriToBitmap
+import com.google.ai.client.generativeai.Chat
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
@@ -106,11 +109,13 @@ class ChatViewModel(
             SharingStarted.Eagerly,
             emptyList()
         )
+    var aiMsg: MessageEntity by mutableStateOf(MessageEntity(0,0,"",SenderType.USER))
 
     val model = GenerativeModel(
         modelName = "gemini-2.5-flash-preview-04-17",
         apiKey = BuildConfig.apiKey
     )
+    val aiChats = mutableStateMapOf<Long,Chat>()
 
     val userPrompt = MutableStateFlow("")
     var editingMessageId by mutableIntStateOf(0)
@@ -118,26 +123,30 @@ class ChatViewModel(
     init {
         viewModelScope.launch {
             delay(1000)
-            val chatsRepo = chatRepository.chats.first()
-            if(chatsRepo.isEmpty()) {
+            val chatsExp = chatRepository.chats.first()
+            if (chatsExp.isEmpty()) {
                 chatRepository.addChat(
                     ChatEntity(
                         chatId = 0,
                         name = application.getString(R.string.new_chat)
                     )
                 )
-            }else{
-                if(chatsRepo.last().messages.isNotEmpty()) {
+                aiChats[0] = model.startChat()
+            } else {
+                if (chatsExp.last().messages.isNotEmpty()) {
                     updateChatId(
                         chatRepository.addInitialChat(
                             ChatEntity(
-                                chatId = chatsRepo.size.toLong(),
+                                chatId = chatsExp.size.toLong(),
                                 name = application.getString(R.string.new_chat)
                             )
                         )
                     )
                 }
             }
+
+            chats.value.forEach { aiChats[it.chat.chatId] = model.startChat() }
+            defaultChatName = application.getString(R.string.new_chat)
             _uiState.value = UiState.Success
         }
     }
@@ -145,14 +154,14 @@ class ChatViewModel(
     fun newChat(){
         viewModelScope.launch {
             if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty()) {
-                updateChatId(
-                    chatRepository.addInitialChat(
-                        ChatEntity(
-                            chatId = chats.value.size.toLong(),
-                            name = application.getString(R.string.new_chat)
-                        )
+                val chatId = chatRepository.addInitialChat(
+                    ChatEntity(
+                        chatId = chats.value.size.toLong(),
+                        name = application.getString(R.string.new_chat)
                     )
                 )
+                updateChatId(chatId)
+                aiChats[chatId] = model.startChat()
             }else{
                 updateChatId(chats.value.lastIndex.toLong())
             }
@@ -166,12 +175,7 @@ class ChatViewModel(
                     "Предыдущий ответ: ${messages.last().content}" +
                     "придумай одно имя для этого чата без комментариев (язык, на котором будет имя этого чата, зависит от языка твоего предыдущего ответа)"
             val response = model.generateContent(content { text(prompt) })
-            chatRepository.editChat(
-                ChatEntity(
-                    chatId = chatId,
-                    name = (response.text ?: "").trim().filter{it.isLetter()||it.isWhitespace()}
-                )
-            )
+            chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(name = (response.text ?: "").trim()))//.filter{it.isLetter()||it.isWhitespace()}))
         }
     }
 
@@ -184,14 +188,9 @@ class ChatViewModel(
     ){
         userPrompt.value = ""
         viewModelScope.launch(Dispatchers.IO) {
-            chatRepository.editChat(
-                ChatEntity(
-                    chatId = chatId,
-                    chatState = ApiState.Loading
-                )
-            )
+            chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Loading))
             try {
-                val response = chats.value[chatId.toInt()].chat.aiChat.sendMessage(
+                val response = aiChats[chatId]?.sendMessage(
                     content {
                         text(prompt)
                         if(bitmap.isNotEmpty()) {
@@ -231,74 +230,47 @@ class ChatViewModel(
                         }
                     }
                 )
-                val resp = response.text
+                val resp = response?.text
                 if(resp != null) {
-                    chatRepository.editChat(
-                        ChatEntity(
-                            chatId = chatId,
-                            chatState = ApiState.Success
-                        )
-                    )
+                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Success))
                     onResponse(resp)
                 }else{
-                    chatRepository.editChat(
-                        ChatEntity(
-                            chatId = chatId,
-                            chatState = ApiState.Error
-                        )
-                    )
+                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Error))
                     Log.e("API","response is empty")
                 }
                 if(chats.value[chatId.toInt()].chat.name == application.getString(R.string.new_chat)) {
                     setChatName(chatId)
                 }
             } catch (e: Exception) {
-                chatRepository.editChat(
-                    ChatEntity(
-                        chatId = chatId,
-                        chatState = ApiState.Error
-                    )
-                )
-                Log.e("API", e.localizedMessage)
+                chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Error))
+                Log.e("API", e.localizedMessage ?: "Error")
             }
         }
     }
 
     fun regenerateResponse(
         pics: List<Uri> = emptyList(),
-        message: MessageEntity,
+        userMsg: MessageEntity,
+        aiMsg: MessageEntity,
         prompt: String? = null,
         files: List<Uri> = emptyList()
     ){
         val bitmapList = mutableListOf<Bitmap>()
-        val chatId = currentChatId.value
-        pics.forEach { uriToBitmap(application,it)?.let { element -> bitmapList.add(element) } }
+        val chatId = userMsg.chatOwnerId
+        (if(pics.isNotEmpty()) pics else userMsg.pictures).forEach { uriToBitmap(application,it)?.let { element -> bitmapList.add(element) } }
         viewModelScope.launch {
-            chatRepository.updateMessage(
-                MessageEntity(
-                    messageId = message.messageId+1,
-                    content = "",
-                    senderType = SenderType.AI,
-                    chatOwnerId = chatId
-                )
-            )
+            val msg = chatRepository.messages(chatId).first()
+            chatRepository.updateMessage(msg[msg.indexOf(aiMsg)].copy(content = ""))
             sendRequest(
-                prompt = prompt ?: message.content,
+                prompt = prompt ?: userMsg.content,
                 bitmap = bitmapList,
                 onResponse = {
                     viewModelScope.launch {
-                        chatRepository.updateMessage(
-                            MessageEntity(
-                                messageId = message.messageId + 1,
-                                content = it,
-                                chatOwnerId = chatId,
-                                senderType = SenderType.AI
-                            )
-                        )
+                        chatRepository.updateMessage(msg[msg.indexOf(aiMsg)].copy(content = it))
                     }
                 },
-                files = files,
-                chatId
+                files = if(files.isNotEmpty())files else userMsg.files,
+                chatId = chatId
             )
         }
     }
@@ -314,7 +286,7 @@ class ChatViewModel(
                 chatRepository.messages(manipulChatId.toLong()).first().forEach {
                     chatRepository.deleteMessage(it)
                 }
-                chatRepository.editChat(
+                chatRepository.updateChat(
                     ChatEntity(
                         chatId = 0,
                         name = application.getString(R.string.new_chat),
@@ -328,14 +300,15 @@ class ChatViewModel(
 
     fun editChat(chat: ChatEntity){
         viewModelScope.launch {
-            chatRepository.editChat(chat)
+            chatRepository.updateChat(chat)
         }
     }
 
     fun editMessage(
         text: String,
         pics: List<Uri>,
-        files: List<Uri>
+        files: List<Uri>,
+        aiMsg: MessageEntity
     ){
         isEdit = false
         val chatId = currentChatId.value
@@ -348,20 +321,18 @@ class ChatViewModel(
             }
             val message = messages[editingMessageId]
             chatRepository.updateMessage(
-                MessageEntity(
-                    messageId = message.messageId,
+                chatRepository.messages(chatId).first()[(message.messageId).toInt()].copy(
                     content = text,
-                    chatOwnerId = chatId,
-                    senderType = SenderType.USER,
                     pictures = pics,
                     files = files
                 )
             )
             regenerateResponse(
-                message = message,
+                userMsg = message,
                 prompt = text,
                 pics = pics,
-                files = files
+                files = files,
+                aiMsg = aiMsg
             )
         }
     }
@@ -396,14 +367,7 @@ class ChatViewModel(
                 bitmap = bitmapList,
                 onResponse = {
                     viewModelScope.launch(Dispatchers.IO) {
-                        chatRepository.updateMessage(
-                            MessageEntity(
-                                messageId = chatRepository.messages(chatId).first().last().messageId,
-                                content = it,
-                                chatOwnerId = chatId,
-                                senderType = SenderType.AI
-                            )
-                        )
+                        chatRepository.updateMessage(chatRepository.messages(chatId).first().last().copy(content = it))
                     }
                 },
                 files = files,

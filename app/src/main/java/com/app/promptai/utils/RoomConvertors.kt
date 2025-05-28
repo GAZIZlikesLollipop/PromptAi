@@ -3,11 +3,8 @@ package com.app.promptai.utils
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.room.TypeConverter
-import com.google.ai.client.generativeai.Chat
 import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class UriListConvertors {
@@ -29,25 +26,6 @@ class UriListConvertors {
         val stringList: List<String> = gson.fromJson(json, type)
         // 2) Превращаем каждую строку обратно в Uri
         return stringList.map { it.toUri() }
-    }
-
-}
-
-class ChatConvertors {
-    private val gson = GsonBuilder()
-        .excludeFieldsWithoutExposeAnnotation()
-        .create()
-
-    @TypeConverter
-    fun fromChat(chat: Chat?): String? {
-        return gson.toJson(chat)
-    }
-
-    @TypeConverter
-    fun toChat(json: String?): Chat? {
-        if (json.isNullOrEmpty()) return null
-        val type = object : TypeToken<Chat>() {}.type
-        return gson.fromJson(json, type)
     }
 
 }
