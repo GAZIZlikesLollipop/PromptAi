@@ -41,7 +41,6 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.Button
@@ -104,9 +103,6 @@ fun TypingChatBar(
     previousMsg: String,
     isOpen: Boolean,
     switchIsEdit: () -> Unit,
-    isWebSearch: Boolean,
-    switchIsWebSearch: () -> Unit,
-    switchIsMore: () -> Unit,
     picList: MutableList<Uri>,
     fileList: MutableList<Uri>,
     aiMsg: MessageEntity
@@ -327,49 +323,24 @@ fun TypingChatBar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row {
-                    Button(
-                        onClick = onMore,
-                        shape = CircleShape,
-                        modifier = Modifier.size(32.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = MaterialTheme.colorScheme.onBackground,
-                            disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                        ),
-                        border = BorderStroke(1.dp, if(!isWebSearch) colorAnim else MaterialTheme.colorScheme.primary.copy(0.5f)),
-                        contentPadding = PaddingValues(0.dp),
-                        enabled = !isWebSearch
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = "",
-                            modifier = Modifier.size(20.dp).rotate(rotateAnim)
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if(isMore){switchIsMore()}
-                            switchIsWebSearch()
-                        },
-                        shape = CircleShape,
-                        modifier = Modifier.size(32.dp),
-                        border = BorderStroke(1.dp, if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if(isWebSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
-                        ),
-                        enabled = picList.isEmpty()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Language,
-                            contentDescription = "",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                Button(
+                    onClick = onMore,
+                    shape = CircleShape,
+                    modifier = Modifier.size(32.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
+                    ),
+                    border = BorderStroke(1.dp, colorAnim),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "",
+                        modifier = Modifier.size(20.dp).rotate(rotateAnim)
+                    )
                 }
 
                 Button(

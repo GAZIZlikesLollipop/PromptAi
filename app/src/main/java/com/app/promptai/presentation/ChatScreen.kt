@@ -177,11 +177,6 @@ fun ChatScreen(chatViewModel: ChatViewModel) {
                             verticalArrangement = Arrangement.spacedBy(36.dp)
                         ) {
                             itemsIndexed(messages) { ind, msg ->
-                                LaunchedEffect(chatViewModel.isEdit) {
-                                    if(chatViewModel.isEdit == true){
-                                        chatViewModel.aiMsg = messages[ind]
-                                    }
-                                }
                                 ChatContent(
                                     msg = msg,
                                     chatViewModel = chatViewModel,
@@ -245,7 +240,8 @@ fun ChatScreen(chatViewModel: ChatViewModel) {
                     TextButton(onClick = { isDelete = false }) {
                         Text(alrt[1])
                     }
-                }
+                },
+                modifier = Modifier.padding(12.dp)
             )
         }
 
@@ -263,7 +259,7 @@ fun ChatScreen(chatViewModel: ChatViewModel) {
             ){
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
                     colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainerHighest)
                 ){
                     Column(

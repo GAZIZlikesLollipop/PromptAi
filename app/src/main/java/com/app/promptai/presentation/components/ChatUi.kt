@@ -79,9 +79,6 @@ fun BaseChatScreen(
                 previousMsg = if(messages.isNotEmpty())viewModel.messages.collectAsState().value[viewModel.editingMessageId].content else "",
                 isOpen = viewModel.isOpen,
                 switchIsEdit = viewModel::switchIsEdit,
-                isWebSearch = viewModel.isWebSearch,
-                switchIsWebSearch = viewModel::switchIsWebSearch,
-                switchIsMore = viewModel::switchIsMore,
                 picList = viewModel.picList,
                 fileList = viewModel.fileList,
                 aiMsg = viewModel.aiMsg

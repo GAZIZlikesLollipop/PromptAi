@@ -447,6 +447,7 @@ fun ChatContent(
                 onEdit = {
                     chatViewModel.isEdit = true
                     chatViewModel.editingMessageId = ind
+                    chatViewModel.aiMsg = messages[ind+1]
                 },
                 apiState = apiState
             )

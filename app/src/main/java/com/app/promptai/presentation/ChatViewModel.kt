@@ -61,12 +61,7 @@ class ChatViewModel(
     var isMore by mutableStateOf(false)
     var isEdit by mutableStateOf(false)
     var isOpen by mutableStateOf(false)
-    var isWebSearch by mutableStateOf(false)
     var manipulChatId by mutableIntStateOf(0)
-
-    fun switchIsWebSearch(){
-        isWebSearch = !isWebSearch
-    }
 
     fun switchIsEdit(){
         isEdit = !isEdit
@@ -260,6 +255,11 @@ class ChatViewModel(
         (if(pics.isNotEmpty()) pics else userMsg.pictures).forEach { uriToBitmap(application,it)?.let { element -> bitmapList.add(element) } }
         viewModelScope.launch {
             val msg = chatRepository.messages(chatId).first()
+            msg.forEachIndexed { ind, cnt ->
+                if(ind > msg.indexOf(aiMsg)){
+                    chatRepository.deleteMessage(cnt)
+                }
+            }
             chatRepository.updateMessage(msg[msg.indexOf(aiMsg)].copy(content = ""))
             sendRequest(
                 prompt = prompt ?: userMsg.content,
@@ -321,7 +321,7 @@ class ChatViewModel(
             }
             val message = messages[editingMessageId]
             chatRepository.updateMessage(
-                chatRepository.messages(chatId).first()[(message.messageId).toInt()].copy(
+                messages[messages.indexOf(message)].copy(
                     content = text,
                     pictures = pics,
                     files = files
