@@ -72,7 +72,7 @@ import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
 import com.app.promptai.presentation.ChatViewModel
-import com.app.promptai.utils.ApiState
+import com.app.promptai.data.model.ApiState
 import com.app.promptai.utils.bytesToString
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.launch

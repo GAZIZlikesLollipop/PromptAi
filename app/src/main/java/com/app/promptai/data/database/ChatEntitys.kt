@@ -7,7 +7,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
-import com.app.promptai.utils.ApiState
+import com.app.promptai.data.model.ApiState
 
 var defaultChatName = ""
 

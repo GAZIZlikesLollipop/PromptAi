@@ -1,4 +1,4 @@
-package com.app.promptai.utils
+package com.app.promptai.data.model
 
 import kotlinx.serialization.Serializable
 

@@ -33,8 +33,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.app.promptai.R
 import com.app.promptai.presentation.ChatViewModel
-import com.app.promptai.utils.ApiState
-import com.app.promptai.utils.UiState
+import com.app.promptai.data.model.ApiState
+import com.app.promptai.data.model.UiState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,6 +79,8 @@ fun BaseChatScreen(
                 previousMsg = if(messages.isNotEmpty())viewModel.messages.collectAsState().value[viewModel.editingMessageId].content else "",
                 isOpen = viewModel.isOpen,
                 switchIsEdit = viewModel::switchIsEdit,
+                isWebSearch = viewModel.isWebSearch,
+                switchIsWebSearch = viewModel::switchIsWebSearch,
                 picList = viewModel.picList,
                 fileList = viewModel.fileList,
                 aiMsg = viewModel.aiMsg

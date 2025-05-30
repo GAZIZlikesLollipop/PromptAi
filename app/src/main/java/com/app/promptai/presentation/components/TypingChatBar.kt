@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.Button
@@ -80,8 +81,8 @@ import androidx.core.net.toFile
 import coil3.compose.AsyncImage
 import com.app.promptai.R
 import com.app.promptai.data.database.MessageEntity
-import com.app.promptai.utils.ApiState
-import com.app.promptai.utils.UiState
+import com.app.promptai.data.model.ApiState
+import com.app.promptai.data.model.UiState
 import com.app.promptai.utils.bytesToString
 import com.app.promptai.utils.createPictureProviderTempUri
 import com.app.promptai.utils.deleteTempFile
@@ -103,6 +104,8 @@ fun TypingChatBar(
     previousMsg: String,
     isOpen: Boolean,
     switchIsEdit: () -> Unit,
+    isWebSearch: Boolean,
+    switchIsWebSearch: () -> Unit,
     picList: MutableList<Uri>,
     fileList: MutableList<Uri>,
     aiMsg: MessageEntity
@@ -323,24 +326,49 @@ fun TypingChatBar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = onMore,
-                    shape = CircleShape,
-                    modifier = Modifier.size(32.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onBackground,
-                        disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                    ),
-                    border = BorderStroke(1.dp, colorAnim),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "",
-                        modifier = Modifier.size(20.dp).rotate(rotateAnim)
-                    )
+                Row {
+                    Button(
+                        onClick = onMore,
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                            disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(0.5f),
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
+                        ),
+                        border = BorderStroke(1.dp, if(!isWebSearch) colorAnim else MaterialTheme.colorScheme.primary.copy(0.5f)),
+                        contentPadding = PaddingValues(0.dp),
+                        enabled = !isWebSearch
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "",
+                            modifier = Modifier.size(20.dp).rotate(rotateAnim)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if(isMore){onMore()}
+                            switchIsWebSearch()
+                        },
+                        shape = CircleShape,
+                        modifier = Modifier.size(32.dp),
+                        border = BorderStroke(1.dp, if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if(isWebSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = if(isWebSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        ),
+                        enabled = picList.isEmpty()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Language,
+                            contentDescription = "",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
                 Button(

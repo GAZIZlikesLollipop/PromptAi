@@ -51,8 +51,8 @@ import com.app.promptai.R
 import com.app.promptai.presentation.components.BaseChatScreen
 import com.app.promptai.presentation.components.ChatCard
 import com.app.promptai.presentation.components.ChatContent
-import com.app.promptai.utils.ApiState
-import com.app.promptai.utils.UiState
+import com.app.promptai.data.model.ApiState
+import com.app.promptai.data.model.UiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

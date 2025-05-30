@@ -10,7 +10,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.core.net.toFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.promptai.BuildConfig
@@ -19,15 +18,20 @@ import com.app.promptai.data.database.ChatEntity
 import com.app.promptai.data.database.MessageEntity
 import com.app.promptai.data.database.SenderType
 import com.app.promptai.data.database.defaultChatName
+import com.app.promptai.data.model.ApiState
+import com.app.promptai.data.model.UiState
 import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
-import com.app.promptai.utils.ApiState
-import com.app.promptai.utils.UiState
+import com.app.promptai.data.repository.WebSearchRepository
 import com.app.promptai.utils.getChatMap
 import com.app.promptai.utils.getMimeTypeFromFileUri
 import com.app.promptai.utils.uriToBitmap
 import com.google.ai.client.generativeai.Chat
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.FunctionCallPart
+import com.google.ai.client.generativeai.type.FunctionDeclaration
+import com.google.ai.client.generativeai.type.Schema
+import com.google.ai.client.generativeai.type.Tool
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,14 +44,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val chatPreferences: ChatPreferencesRepository,
-    private val application: Application
+    private val application: Application,
+    private val webSearchRepository: WebSearchRepository
 ) : ViewModel() {
 
     private val _uiState: MutableStateFlow<UiState> = MutableStateFlow(UiState.Initial)
@@ -62,6 +65,11 @@ class ChatViewModel(
     var isEdit by mutableStateOf(false)
     var isOpen by mutableStateOf(false)
     var manipulChatId by mutableIntStateOf(0)
+    var isWebSearch by mutableStateOf(false)
+
+    fun switchIsWebSearch(){
+        isWebSearch = !isWebSearch
+    }
 
     fun switchIsEdit(){
         isEdit = !isEdit
@@ -106,9 +114,23 @@ class ChatViewModel(
         )
     var aiMsg: MessageEntity by mutableStateOf(MessageEntity(0,0,"",SenderType.USER))
 
+    val queryParameterSchema = Schema.str(
+        name = "query",
+        description = "The search query to use for finding information."
+    )
+
+    // Now define your FunctionDeclaration using YOUR FunctionDeclaration's constructor
+    val webSearchTool= FunctionDeclaration(
+        name = "search_web",
+        description = "Searches the web for current information based on a user's query.",
+        parameters = listOf(queryParameterSchema), // Pass a List of Schema objects
+        requiredParameters = listOf("query") // List of names of required parameters
+    )
+
     val model = GenerativeModel(
         modelName = "gemini-2.5-flash-preview-04-17",
-        apiKey = BuildConfig.apiKey
+        apiKey = BuildConfig.apiKey,
+        tools = listOf(Tool(functionDeclarations = listOf(webSearchTool)))
     )
     val aiChats = mutableStateMapOf<Long,Chat>()
 
@@ -174,66 +196,89 @@ class ChatViewModel(
         }
     }
 
-    fun sendRequest(
+     fun sendRequest(
         prompt: String,
         bitmap: List<Bitmap> = emptyList(),
+        files: List<Uri> = emptyList(),
         onResponse: (String) -> Unit,
-        files: List<Uri>,
         chatId: Long
-    ){
+    ) {
         userPrompt.value = ""
         viewModelScope.launch(Dispatchers.IO) {
             chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Loading))
             try {
-                val response = aiChats[chatId]?.sendMessage(
-                    content {
-                        text(prompt)
-                        if(bitmap.isNotEmpty()) {
-                            bitmap.forEach {
-                                image(it)
-                            }
-                        }
+                val chat = aiChats[chatId] ?: model.startChat().also { aiChats[chatId] = it }
 
-                        if(files.isNotEmpty()){
-                            files.forEach { uri ->
-                                val file = getMimeTypeFromFileUri(uri)
-                                var data: ByteArray? = null
-                                val inputStream: InputStream? = application.contentResolver.openInputStream(uri)
-
-                                inputStream?.use { input ->
-                                    val byteArrayOutputStream = ByteArrayOutputStream()
-                                    val buffer = ByteArray(1024)
-                                    var bytesRead: Int
-                                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                                        byteArrayOutputStream.write(buffer, 0, bytesRead)
-                                    }
-                                    data = byteArrayOutputStream.toByteArray()
-                                }
-
-                                if(file != null && data != null && file != "application/octet-stream"){
-                                    text("file: ${uri.toFile().name}\n")
-                                    blob(file, data)
-                                }else{
-                                    val inputStream1 = application.contentResolver.openInputStream(uri)
-                                    val content = inputStream1?.bufferedReader().use { it?.readText() }
-                                    if(content != null){
-                                        text("file: ${uri.toFile().name}\n${content}")
-                                    }
-                                }
-
+                // Создание начального контента
+                val initialContent = content {
+                    text(prompt)
+                    bitmap.forEach { image(it) }
+                    files.forEach { uri ->
+                        val mimeType = getMimeTypeFromFileUri(uri)
+                        val data = application.contentResolver.openInputStream(uri)?.readBytes()
+                        if (mimeType != null && data != null && mimeType != "application/octet-stream") {
+                            blob(mimeType, data)
+                        } else if (data != null) {
+                            val contentText = application.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+                            if (contentText != null) {
+                                text("file: ${uri.lastPathSegment ?: "unknown"}\n${contentText}")
                             }
                         }
                     }
-                )
-                val resp = response?.text
-                if(resp != null) {
-                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Success))
-                    onResponse(resp)
-                }else{
-                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Error))
-                    Log.e("API","response is empty")
                 }
-                if(chats.value[chatId.toInt()].chat.name == application.getString(R.string.new_chat)) {
+
+                // Отправка запроса модели
+                var response = chat.sendMessage(initialContent)
+
+                // Обработка вызовов инструментов
+                if(isWebSearch) {
+                    while (response.candidates.any { it.content.parts.any { part -> part is FunctionCallPart } } == true) {
+                        val functionCallPart = response.candidates
+                            .flatMap { it.content.parts }
+                            .filterIsInstance<FunctionCallPart>()
+                            .firstOrNull()
+
+                        if (functionCallPart != null) {
+                            val toolName = functionCallPart.name
+                            val arguments = functionCallPart.args
+
+                            // Выполнение соответствующего инструмента
+                            val toolOutput = when (toolName) {
+                                "search_web" -> {
+                                    val query = arguments["query"]
+                                    if (query != null) {
+                                        val results = webSearchRepository.webSearch(query)
+                                        results.joinToString("\n") { "${it.title}\n${it.snippet}\n${it.link}" }
+                                    } else {
+                                        "Invalid query parameter."
+                                    }
+                                }
+
+                                else -> "Unknown tool: $toolName"
+                            }
+
+                            // Отправка результата инструмента обратно модели
+                            response = chat.sendMessage(
+                                content(role = "user") {
+                                   text("search_web response: $toolOutput")
+                                }
+                            )
+                        } else {
+                            break
+                        }
+                    }
+                }
+
+                val finalResponse = response.text
+                if (finalResponse != null) {
+                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Success))
+                    onResponse(finalResponse)
+                } else {
+                    chatRepository.updateChat(chats.value[chatId.toInt()].chat.copy(chatState = ApiState.Error))
+                    Log.e("API", "response is empty")
+                }
+
+                if (chats.value[chatId.toInt()].chat.name == application.getString(R.string.new_chat)) {
                     setChatName(chatId)
                 }
             } catch (e: Exception) {
@@ -371,7 +416,7 @@ class ChatViewModel(
                     }
                 },
                 files = files,
-                chatId
+                chatId = chatId
             )
         }
     }

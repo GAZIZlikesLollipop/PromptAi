@@ -7,9 +7,9 @@ import androidx.lifecycle.ViewModelProvider
 import com.app.promptai.data.database.ChatCnt
 import com.app.promptai.data.repository.ChatPreferencesRepository
 import com.app.promptai.data.repository.ChatRepository
+import com.app.promptai.data.repository.WebSearchRepository
 import com.app.promptai.presentation.ChatViewModel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
 import java.time.LocalDate
@@ -71,12 +71,13 @@ fun getChatMap(chats: List<ChatCnt>): Flow<Map<String, List<ChatCnt>>> {
 class ChatViewModelFactory(
     private val chatRepository: ChatRepository,
     private val chatPreferences: ChatPreferencesRepository,
-    private val application: Application
+    private val application: Application,
+    private val webSearchRepository: WebSearchRepository
 ): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if(modelClass.isAssignableFrom(ChatViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ChatViewModel(chatRepository,chatPreferences,application) as T
+            return ChatViewModel(chatRepository,chatPreferences,application,webSearchRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
