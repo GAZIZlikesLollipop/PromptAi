@@ -51,8 +51,8 @@ fun BaseChatScreen(
 
     val chatId by viewModel.currentChatId.collectAsState()
 
-    val chatName = if(messages.isNotEmpty() && chats.isNotEmpty()){
-        chats[viewModel.currentChatId.collectAsState().value.toInt()].chat.name
+    val chatName = if(messages.isNotEmpty() && chats.isNotEmpty() && chatId.toInt() in chats.indices){
+        chats[chatId.toInt()].chat.name
     }else{
         cnt[0]
     }

@@ -168,6 +168,20 @@ class ChatViewModel(
         }
     }
 
+    val searchChat = MutableStateFlow("")
+
+    val searchChatMap = searchChat
+        .flatMapLatest { getChatMap(chatRepository.searchChat(it.trim())) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            emptyMap()
+        )
+
+    fun editSearchChat(chat: String){
+        searchChat.value = chat
+    }
+
     fun newChat(){
         viewModelScope.launch {
             if(chatRepository.messages(chats.value.lastIndex.toLong()).first().isNotEmpty()) {

@@ -35,4 +35,7 @@ interface ChatDao {
 
     @Delete
     suspend fun deleteMessage(message: MessageEntity)
+
+    @Query("SELECT * FROM chats WHERE LOWER(name) LIKE LOWER('%' || :queryName || '%')")
+    suspend fun searchChatByName(queryName: String): List<ChatCnt>
 }

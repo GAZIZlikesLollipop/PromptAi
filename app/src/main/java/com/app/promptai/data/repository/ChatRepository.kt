@@ -16,6 +16,7 @@ interface ChatRepo {
     suspend fun updateMessage(message: MessageEntity)
     suspend fun deleteChat(chat: ChatEntity)
     suspend fun deleteMessage(message: MessageEntity)
+    suspend fun searchChat(chatName: String): List<ChatCnt>
 }
 
 class ChatRepository(private val chatDao: ChatDao): ChatRepo {
@@ -50,6 +51,10 @@ class ChatRepository(private val chatDao: ChatDao): ChatRepo {
 
     override suspend fun deleteChat(chat: ChatEntity){
         chatDao.deleteChat(chat)
+    }
+
+    override suspend fun searchChat(chatName: String): List<ChatCnt> {
+        return chatDao.searchChatByName(chatName)
     }
 
 }
